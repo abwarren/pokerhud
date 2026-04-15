@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+
+# Temp
+*.bak.*
+*.tmp
+snapshots/
+tournament_data/
+Scrapegraph-ai/
+Scrapegraph-ai/
