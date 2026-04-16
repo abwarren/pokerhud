@@ -6,8 +6,6 @@ rsync -avz --delete \
   --exclude 'node_modules' \
   --exclude '__pycache__' \
   --exclude '*.pyc' \
-  --exclude 'Scrapegraph-ai' \
-  --exclude 'pokerhud' \
   -e "ssh -i /home/ploxyz.pem" \
   /opt/pokerhud/ ubuntu@52.16.14.220:/opt/pokerhud/
 echo "✅ Synced to Dublin"
