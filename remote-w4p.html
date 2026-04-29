@@ -185,10 +185,12 @@
     border-color: #1976d2;
     box-shadow: 0 0 12px rgba(25,118,210,0.4), 0 4px 12px rgba(0,0,0,0.5);
   }
-  .seat-box.expanded {
+  .seat-box.active-turn {
     border-color: #ffd54f;
     box-shadow: 0 0 6px rgba(255,213,79,0.3), 0 2px 6px rgba(0,0,0,0.4);
   }
+  .seat-actions.inactive { opacity: 0.35; }
+  .seat-actions.inactive .sa-turn-label { display: none; }
 
   /* Debug badge */
   .dbg-badge {
@@ -583,6 +585,8 @@ var globalAutoCcPreflop = false; // global AUTO C/C PREFLOP — persists across 
 var globalAutoCF = false;        // master SELECT ALL AUTO C/F — new players default to C/F when on
 var globalCFExcluded = {};       // seats manually unticked while globalAutoCF is on
 var khState = {};                // seatNo -> true (KH = Keep Hand, manual input required)
+var khActive = false;            // true when KH raise-war mode is running
+var khLastSent = {};             // seatNo -> timestamp (throttle KH re-sends)
 var autoCcLastSent = {};         // seatNo -> timestamp (throttle re-sends to every 3s)
 var lastBoardKey = null;
 
@@ -694,19 +698,15 @@ function fetchTable() {
       } else {
         dot.className = 'conn-dot';
         label.textContent = 'no table';
-        if (!lastTable) { schedulePoll(); return; }
-        _lastTableJSON = '';
-        lastTable = null;
+        // Keep showing last known data — don't flash empty
       }
-      scheduleRender();
       schedulePoll();
     })
     .catch(function() {
       fetchInFlight = false;
       dot.className = 'conn-dot err';
       label.textContent = 'error';
-      lastTable = null;
-      scheduleRender();
+      // Keep showing last known data on network errors
       schedulePoll();
     });
 }
@@ -824,7 +824,7 @@ function buildSeatBoxHtml(seat) {
 
   var cls = 'seat-box';
   if (isHero) cls += ' hero';
-  if (isActive) cls += ' expanded';
+  if (isActive) cls += ' active-turn';
   if (khState[sn]) cls += ' kh-marked';
   else if (isHero && preActionState[sn] === 'check_fold') cls += ' kh-auto';
 
@@ -870,10 +870,12 @@ function buildSeatBoxHtml(seat) {
     html += '<span class="sc-toggle kh-toggle' + (khState[sn] ? ' active' : '') +
       '" data-sc-preact="kh" data-sc-seat="' + sn + '">KH</span>';
     if (khState[sn]) html += '<span class="kh-badge">KEEP</span>';
+    html += '<button class="sc-toggle" data-sc-cmd="sit_out" data-sc-seat="' + sn + '" style="border-color:#ff9800;color:#ff9800;">SIT</button>';
+    html += '<button class="sc-toggle" data-sc-cmd="close_table" data-sc-seat="' + sn + '" style="border-color:#f44336;color:#f44336;">CT</button>';
     html += '</div>';
 
-    // Expanded: full action set when hero is current actor
-    if (isActive) {
+    // Action buttons — always visible, greyed out when not active
+    {
       var btns = seat.buttons || null;
       var slider = btns && btns.slider ? btns.slider : null;
       var hasRaise = acts.indexOf('raise') >= 0;
@@ -887,53 +889,36 @@ function buildSeatBoxHtml(seat) {
       if (sCur < sMin) sCur = sMin;
       if (sCur > sMax) sCur = sMax;
 
-      html += '<div class="seat-actions">';
-      html += '<div class="sa-turn-label">YOUR TURN</div>';
+      html += '<div class="seat-actions' + (isActive ? '' : ' inactive') + '">';
+      if (isActive) html += '<div class="sa-turn-label">YOUR TURN</div>';
 
       // Row 1: FOLD, CHECK, CALL, BET/RAISE
       html += '<div class="sa-row">';
-      var foldAvail = acts.indexOf('fold') >= 0;
+      var foldAvail = isActive && acts.indexOf('fold') >= 0;
       html += '<button class="sa-btn fold" data-sa-cmd="fold" data-sa-seat="' + sn + '"' + (foldAvail ? '' : ' disabled') + '>FOLD</button>';
-      var checkAvail = acts.indexOf('check') >= 0;
+      var checkAvail = isActive && acts.indexOf('check') >= 0;
       html += '<button class="sa-btn check" data-sa-cmd="check" data-sa-seat="' + sn + '"' + (checkAvail ? '' : ' disabled') + '>CHECK</button>';
-      var callAvail = acts.indexOf('call') >= 0;
+      var callAvail = isActive && acts.indexOf('call') >= 0;
       var callData = getActionData(seat, 'call');
       var callLabel = callData && callData.amount != null ? 'CALL R' + callData.amount : 'CALL';
       html += '<button class="sa-btn call" data-sa-cmd="call" data-sa-seat="' + sn + '"' + (callAvail ? '' : ' disabled') + '>' + callLabel + '</button>';
-      var brAvail = hasRaise || hasBet;
+      var brAvail = isActive && (hasRaise || hasBet);
       html += '<button class="sa-btn ' + raiseWord + '" data-sa-cmd="' + raiseWord + '" data-sa-seat="' + sn + '" data-sa-use-amount="1"' + (brAvail ? '' : ' disabled') + '>' + raiseWord.toUpperCase() + '</button>';
       html += '</div>';
 
-      // Misc actions (cashout, show, run_it_twice, resume_hand, back_to_game)
-      var miscActions = ['cashout', 'show', 'run_it_twice', 'resume_hand', 'back_to_game'];
-      var hasMisc = false;
-      for (var mi = 0; mi < miscActions.length; mi++) {
-        if (acts.indexOf(miscActions[mi]) >= 0) { hasMisc = true; break; }
-      }
-      if (hasMisc) {
-        html += '<div class="sa-row">';
-        miscActions.forEach(function(a) {
-          if (acts.indexOf(a) >= 0) {
-            var label = a.replace(/_/g, ' ').toUpperCase();
-            html += '<button class="sa-btn misc" data-sa-cmd="' + a + '" data-sa-seat="' + sn + '">' + label + '</button>';
-          }
-        });
-        html += '</div>';
-      }
-
       // Presets
       html += '<div class="sa-presets">';
-      html += '<button class="sa-preset" data-sa-preset="min" data-sa-seat="' + sn + '">MIN</button>';
-      html += '<button class="sa-preset" data-sa-preset="half" data-sa-seat="' + sn + '">1/2</button>';
-      html += '<button class="sa-preset" data-sa-preset="pot" data-sa-seat="' + sn + '">POT</button>';
-      html += '<button class="sa-preset" data-sa-preset="max" data-sa-seat="' + sn + '">MAX</button>';
+      html += '<button class="sa-preset" data-sa-preset="min" data-sa-seat="' + sn + '"' + (brAvail ? '' : ' disabled') + '>MIN</button>';
+      html += '<button class="sa-preset" data-sa-preset="half" data-sa-seat="' + sn + '"' + (brAvail ? '' : ' disabled') + '>1/2</button>';
+      html += '<button class="sa-preset" data-sa-preset="pot" data-sa-seat="' + sn + '"' + (brAvail ? '' : ' disabled') + '>POT</button>';
+      html += '<button class="sa-preset" data-sa-preset="max" data-sa-seat="' + sn + '"' + (brAvail ? '' : ' disabled') + '>MAX</button>';
       html += '</div>';
 
       // Slider + amount + raise-go
       html += '<div class="sa-sizing">';
-      html += '<input type="range" class="sa-slider" data-sa-slider="' + sn + '" min="' + sMin + '" max="' + sMax + '" step="' + sStep + '" value="' + sCur + '">';
-      html += '<input type="number" class="sa-amount" data-sa-amount="' + sn + '" min="' + sMin + '" max="' + sMax + '" value="' + sCur + '">';
-      html += '<button class="sa-raise-go" data-sa-cmd="' + raiseWord + '" data-sa-seat="' + sn + '" data-sa-use-amount="1">' + raiseWord.toUpperCase() + '</button>';
+      html += '<input type="range" class="sa-slider" data-sa-slider="' + sn + '" min="' + sMin + '" max="' + sMax + '" step="' + sStep + '" value="' + sCur + '"' + (brAvail ? '' : ' disabled') + '>';
+      html += '<input type="number" class="sa-amount" data-sa-amount="' + sn + '" min="' + sMin + '" max="' + sMax + '" value="' + sCur + '"' + (brAvail ? '' : ' disabled') + '>';
+      html += '<button class="sa-raise-go" data-sa-cmd="' + raiseWord + '" data-sa-seat="' + sn + '" data-sa-use-amount="1"' + (brAvail ? '' : ' disabled') + '>' + raiseWord.toUpperCase() + '</button>';
       html += '</div>';
 
       html += '</div>'; // .seat-actions
@@ -988,8 +973,8 @@ function renderSeats() {
       slot.style.display = '';
       slot.innerHTML = buildSeatBoxHtml(seat);
     } else {
-      slot.style.display = 'none';
-      slot.innerHTML = '';
+      slot.style.display = '';
+      slot.innerHTML = '<div class="seat-box empty"><div class="seat-label">Seat ' + (pos+1) + '</div></div>';
     }
     renderedSeats[pos] = hash;
   }
@@ -1162,6 +1147,15 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
+    // ---- Seat-level direct command buttons (SIT etc) ----
+    var scCmd = e.target.closest('[data-sc-cmd]');
+    if (scCmd) {
+      var csn = Number(scCmd.dataset.scSeat);
+      var ccmd = scCmd.dataset.scCmd;
+      sendCmd(csn, ccmd);
+      return;
+    }
+
     // ---- Seat-level pre-action toggles (C/F, C/C, CO) ----
     var scToggle = e.target.closest('[data-sc-preact]');
     if (scToggle) {
@@ -1225,6 +1219,22 @@ document.addEventListener('DOMContentLoaded', function() {
 function handlePreAction(seatNo, type) {
   if (type === 'kh') {
     khState[seatNo] = !khState[seatNo];
+    // Auto-activate KH mode when any seat is marked
+    var anyKH = false;
+    for (var k in khState) { if (khState[k]) { anyKH = true; break; } }
+    if (anyKH && !khActive) {
+      khActive = true;
+      khLastSent = {};
+      var btn = document.getElementById('execute-kh-btn');
+      if (btn) { btn.classList.add('active-kh'); btn.textContent = 'KH STOP'; }
+      console.log('[KH] AUTO-ACTIVATED (seat toggled)');
+    } else if (!anyKH && khActive) {
+      khActive = false;
+      khLastSent = {};
+      var btn2 = document.getElementById('execute-kh-btn');
+      if (btn2) { btn2.classList.remove('active-kh'); btn2.textContent = 'KH EXECUTE'; }
+      console.log('[KH] AUTO-DEACTIVATED (no KH seats)');
+    }
     console.log('[KH] ' + (khState[seatNo] ? 'marked' : 'unmarked') + ' seat=' + seatNo);
     renderedSeats = {}; lastEmgHash = null; render(); return;
   }
@@ -1315,27 +1325,37 @@ function applyPreset(seatNo, preset, prefix) {
 }
 
 // -- Global AUTO C/C toggle --
-// -- Execute KH: auto C/F all non-KH seats, highlight KH seats --
+// -- Execute KH: KH seats raise-max, all others FOLD (persistent every street) --
 function executeKH() {
   if (!lastTable || !Array.isArray(lastTable.seats)) return;
-  var khCount = 0, cfCount = 0;
+  // Toggle: if already active, deactivate
+  if (khActive) {
+    khActive = false;
+    khLastSent = {};
+    var btn = document.getElementById('execute-kh-btn');
+    if (btn) { btn.classList.remove('active-kh'); btn.textContent = 'KH EXECUTE'; }
+    console.log('[KH] DEACTIVATED — raise war stopped');
+    renderedSeats = {}; lastEmgHash = null; render();
+    return;
+  }
+  // Count KH seats — need at least 1
+  var khCount = 0;
   lastTable.seats.forEach(function(seat) {
     if (!seat.is_self_player && !seat.is_hero) return;
-    if (!seat.name || seat.name === 'Empty') return;
     var sn = getSeatNo(seat);
-    if (khState[sn]) {
-      khCount++;
-      console.log('[KH] KEEP seat=' + sn + ' name=' + seat.name + ' — manual input required');
-    } else {
-      cfCount++;
-      preActionState[sn] = 'check_fold';
-      sendCmd(sn, 'check_fold');
-      console.log('[KH] AUTO_CF seat=' + sn + ' name=' + seat.name);
-    }
+    if (khState[sn]) khCount++;
   });
-  console.log('[KH] executeKH complete: ' + khCount + ' KH (manual), ' + cfCount + ' auto-C/F');
+  if (khCount === 0) {
+    console.log('[KH] ERROR: mark at least 1 seat as KH before executing');
+    return;
+  }
+  khActive = true;
+  khLastSent = {};
+  // Immediate first fire
+  fireKH();
   var btn = document.getElementById('execute-kh-btn');
-  if (btn) { btn.classList.add('active-kh'); setTimeout(function() { btn.classList.remove('active-kh'); }, 2000); }
+  if (btn) { btn.classList.add('active-kh'); btn.textContent = 'KH STOP'; }
+  console.log('[KH] ACTIVATED — ' + khCount + ' KH raise-war, rest fold');
   renderedSeats = {}; lastEmgHash = null; render();
 }
 
@@ -1383,6 +1403,32 @@ function applyGlobalCFToNewSeats() {
   });
 }
 
+// -- KH RAISE WAR: persistent fold/raise_max every time actions available --
+function fireKH() {
+  if (!khActive || !lastTable || !Array.isArray(lastTable.seats)) return;
+  var now = Date.now();
+  lastTable.seats.forEach(function(seat) {
+    if (!seat.is_self_player && !seat.is_hero) return;
+    if (!seat.name || seat.name === 'Empty') return;
+    var sn = getSeatNo(seat);
+    var acts = seat.available_actions || [];
+    if (acts.length === 0) return; // not their turn
+    // Throttle: don't spam same seat more than once per 1.5s
+    var lastSent = khLastSent[sn] || 0;
+    if (now - lastSent < 1500) return;
+    khLastSent[sn] = now;
+    if (khState[sn]) {
+      // KH seat: raise max (raise war)
+      sendCmd(sn, 'raise_max');
+      console.log('[KH] RAISE_MAX seat=' + sn + ' name=' + seat.name);
+    } else {
+      // Non-KH seat: FOLD always (even if check is free)
+      sendCmd(sn, 'fold');
+      console.log('[KH] FOLD seat=' + sn + ' name=' + seat.name);
+    }
+  });
+}
+
 // -- AUTO C/C PREFLOP auto-fire --
 function fireAutoCcPreflop() {
   if (!lastTable || !Array.isArray(lastTable.seats)) return;
@@ -1414,13 +1460,27 @@ function checkNewHand() {
   var boardKey = lastTable.street + ':' + flopStr;
   if (lastBoardKey !== null && lastBoardKey !== boardKey) {
     var isPreflop = boardKey.indexOf('PREFLOP:') === 0;
+    var wasPreflop = lastBoardKey && lastBoardKey.indexOf('PREFLOP:') === 0;
     if (isPreflop || flopStr !== lastBoardKey.split(':').slice(1).join(':')) {
+      // Clear stale pre-actions on extensions when leaving preflop
+      if (wasPreflop && !isPreflop && lastTable && Array.isArray(lastTable.seats)) {
+        lastTable.seats.forEach(function(seat) {
+          if (!seat.is_self_player && !seat.is_hero) return;
+          if (!seat.name || seat.name === 'Empty') return;
+          var sn = getSeatNo(seat);
+          sendCmd(sn, 'clear');
+        });
+        console.log('[REMOTE] sent CLEAR to all seats (street left preflop)');
+      }
       preActionState = {};
       cashoutState = {};
       autoCcPreflop = {};
-      khState = {};
+      // khState + khActive persist across hands — manual toggle only
       autoCcLastSent = {};
+      khLastSent = {};  // reset KH cooldown so commands fire immediately on new hand
+      // Rebuild globalCFExcluded from khState (KH players stay excluded)
       globalCFExcluded = {};
+      for (var ks in khState) { if (khState[ks]) globalCFExcluded[ks] = true; }
       console.log('[AUTO_CC_PREFLOP] reset_new_hand');
       seatAmounts = {};
       emgAmount = null;
@@ -1442,6 +1502,7 @@ function render() {
   renderEmergencyPanel();
   applyGlobalCFToNewSeats();
   fireAutoCcPreflop();
+  fireKH();
 }
 
 // -- Init & poll --

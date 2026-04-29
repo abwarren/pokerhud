@@ -1099,6 +1099,9 @@
     if (action === 'check_call') { _preAction = 'check_call'; console.log('[W4P] Pre-action: CHECK/CALL'); return; }
     if (action === 'clear')      { _preAction = null;          console.log('[W4P] Pre-action cleared');    return; }
 
+    // Direct action commands override any stale pre-action
+    _preAction = null;
+
     // ── Pure native button clicks — mirror PokerBet exactly ──
     var DIRECT = {
       fold:          '.control-b-view-p.fold-c',
@@ -1179,7 +1182,7 @@
     nativeClick(raiseBtn);
     console.log('[W4P] Opened slider panel');
     setTimeout(function() {
-      var presets = document.querySelectorAll('sg-poker-betting-slider .limits-buttons-v-p li, .limits-buttons-v-p li');
+      var presets = document.querySelectorAll('sg-poker-betting-slider .limits-buttons-v-p li, .limits-buttons-v-p li, .betting-slider li, [class*="limits"] li, [class*="preset"] li');
       var clicked = false;
       for (var i = 0; i < presets.length; i++) {
         var txt = (presets[i].textContent || '').trim();
@@ -1189,9 +1192,28 @@
           clicked = true; break;
         }
       }
-      if (!clicked && /max|all/i.test(presetRegex.source) && presets.length > 0) {
-        nativeClick(presets[presets.length - 1]);
-        console.log('[W4P] Clicked last preset (MAX fallback)');
+      if (!clicked && /max|all/i.test(presetRegex.source)) {
+        // Fallback: last preset button OR set slider to max directly
+        if (presets.length > 0) {
+          nativeClick(presets[presets.length - 1]);
+          console.log('[W4P] Clicked last preset (MAX fallback)');
+        }
+        // Force slider to max value
+        var slider = document.querySelector('sg-poker-betting-slider input[type="range"]') || document.querySelector('input[type="range"]');
+        if (slider && slider.max) {
+          var maxVal = slider.max || slider.getAttribute('max');
+          slider.value = maxVal;
+          slider.dispatchEvent(new Event('input', {bubbles:true}));
+          slider.dispatchEvent(new Event('change', {bubbles:true}));
+          console.log('[W4P] Forced slider to max=' + maxVal);
+          // Also set the amount input if exists
+          var amtInput = document.querySelector('sg-poker-betting-slider input[type="number"]') || document.querySelector('sg-poker-betting-slider input[type="text"]') || document.querySelector('[class*="bet-amount"] input') || document.querySelector('[class*="raise-amount"] input');
+          if (amtInput) {
+            amtInput.value = maxVal;
+            amtInput.dispatchEvent(new Event('input', {bubbles:true}));
+            amtInput.dispatchEvent(new Event('change', {bubbles:true}));
+          }
+        }
       }
       setTimeout(function() {
         // Verify amount before confirming
@@ -1324,8 +1346,14 @@
     }
 
     // Fire pre-action if queued and actions available
+    // check_call ONLY fires preflop — postflop is manual
     if (_preAction && avail.length > 0) {
-      runPreAction(avail);
+      if (_preAction === 'check_call' && snap.street !== 'PREFLOP') {
+        console.log('[W4P] check_call blocked (street=' + snap.street + ', preflop only) — clearing');
+        _preAction = null;
+      } else {
+        runPreAction(avail);
+      }
     }
 
     window._w4p_timer = setTimeout(tick, POLL_MS[_mode] || 1000);
