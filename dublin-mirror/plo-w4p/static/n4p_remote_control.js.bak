@@ -1,0 +1,148 @@
+(function(){
+  clearInterval(window._n4p);
+  window._n4p=null;
+
+  const API='https://nuts4poker.com/collector/save';
+  let last='',count=0;
+
+  // Token parser (card class → card notation)
+  function tok(cls){
+    const h=(cls||'').split(/\s+/).filter(t=>/^icon-layer2_([hdcs])(a|k|q|j|10|[2-9])_p-c-d$/i.test(t));
+    if(!h.length)return null;
+    const m=h[h.length-1].match(/^icon-layer2_([hdcs])(a|k|q|j|10|[2-9])_p-c-d$/i);
+    return ({a:'A',k:'K',q:'Q',j:'J','10':'T'}[m[2].toLowerCase()]||m[2]).toUpperCase()+m[1].toLowerCase();
+  }
+
+  // Extract cards from a container
+  function extractCards(container, selector){
+    const seen=new Set(),out=[];
+    for(const el of container.querySelectorAll(selector)){
+      const c=tok(el.getAttribute('class')||'');
+      if(c&&!seen.has(c)){seen.add(c);out.push(c);}
+    }
+    return out;
+  }
+
+  // Get hero seat within a table (look for self-player indicators)
+  function getHeroSeat(table){
+    // Try multiple selectors for hero seat
+    const heroSelectors = [
+      'sg-poker-table-seat.self-player',
+      'sg-poker-table-seat.hero',
+      'sg-poker-table-seat.you',
+      'sg-poker-table-seat[data-self="true"]',
+      'sg-poker-table-seat.active',
+    ];
+
+    for(const selector of heroSelectors){
+      const seat = table.querySelector(selector);
+      if(seat) return seat;
+    }
+
+    // Fallback: find seat with visible cards (assumes only hero cards are shown)
+    for(const seat of table.querySelectorAll('sg-poker-table-seat')){
+      const cards = extractCards(seat, '.single-cart-view-p');
+      if(cards.length >= 2) return seat;
+    }
+
+    return null;
+  }
+
+  // Get board from a table
+  function getBoard(table){
+    const board = table.querySelector('sg-poker-board');
+    if(!board) return [];
+
+    const cards = [];
+    for(const el of board.querySelectorAll('.single-cart-view-p')){
+      // Skip cards that are inside seats (hole cards)
+      if(el.closest('sg-poker-table-seat')) continue;
+      const c = tok(el.getAttribute('class')||'');
+      if(c) cards.push(c);
+    }
+    return cards;
+  }
+
+  // Build multi-table snapshot
+  function buildSnapshot(){
+    const lines = [];
+
+    // Find all table instances
+    const tables = document.querySelectorAll('sg-poker-table, .poker-table, [class*="table"]');
+
+    if(tables.length === 0){
+      // Fallback: single-table mode, scan whole document
+      const heroSeat = getHeroSeat(document);
+      if(heroSeat){
+        const hero = extractCards(heroSeat, '.single-cart-view-p');
+        if(hero.length >= 2){
+          lines.push(hero.join(''));
+          const board = getBoard(document);
+          if(board.length >= 3){
+            lines.push(board.join(''));
+          }
+        }
+      }
+      return lines.join('\n');
+    }
+
+    // Multi-table mode
+    for(const table of tables){
+      const heroSeat = getHeroSeat(table);
+      if(!heroSeat) continue;
+
+      const hero = extractCards(heroSeat, '.single-cart-view-p');
+      if(hero.length < 2) continue;
+
+      // Add hero cards
+      lines.push(hero.join(''));
+
+      // Add board if exists (flop = 3+ cards)
+      const board = getBoard(table);
+      if(board.length >= 3){
+        lines.push(board.join(''));
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  // Send to collector
+  function send(text){
+    const x=new XMLHttpRequest();
+    x.open('POST',API);
+    x.setRequestHeader('Content-Type','application/json');
+    x.onload=function(){
+      try{
+        const d=JSON.parse(x.responseText);
+        if(!d.dup){
+          count++;
+          const lineCount = text.split('\n').length;
+          console.log(`[N4P] #${count} ${lineCount} lines`,d);
+        }else{
+          console.log('[N4P] dup');
+        }
+      }catch(e){
+        console.error('[N4P] err',x.responseText);
+      }
+    };
+    x.onerror=function(){
+      console.error('[N4P] network error');
+    };
+    x.send(JSON.stringify({text}));
+  }
+
+  // Main tick
+  function tick(){
+    const snapshot = buildSnapshot();
+    if(!snapshot) return;
+    if(snapshot===last) return;
+
+    last=snapshot;
+    send(snapshot);
+  }
+
+  window._n4p=setInterval(tick,1500);
+  tick();
+  console.log('[N4P] v4-multi-table-hero running - stop: clearInterval(window._n4p)');
+})();

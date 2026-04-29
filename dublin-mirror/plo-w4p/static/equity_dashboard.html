@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLO Equity Analysis Dashboard</title>
+    <link rel="stylesheet" href="/static/equity_dashboard.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Left Sidebar -->
+        <div class="sidebar">
+            <h3>Input Hands</h3>
+            <textarea id="handsInput" placeholder="Enter hands (one per line):&#10;&#10;4c2hTsKs&#10;9s8dThTc&#10;Qd2c5sJd&#10;&#10;9h8h7c (optional board)"></textarea>
+            <button id="runButton" onclick="runAnalysis()">Run Analysis</button>
+            <div class="hint">
+                <strong>Format:</strong><br>
+                • One hand per line (8 chars for PLO4)<br>
+                • Blank line before board (optional)<br>
+                • Board: 6 chars (flop), 8 (turn), 10 (river)<br>
+                <br>
+                <strong>Example:</strong><br>
+                AhKhQsJs<br>
+                9s8dThTc<br>
+                <br>
+                9h8h7c
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Error Message -->
+            <div id="errorMessage" class="error hidden"></div>
+
+            <!-- Status Strip -->
+            <div id="statusStrip" class="status-strip hidden">
+                <div class="status-item">
+                    <span class="status-label">Status:</span>
+                    <span class="status-value done" id="statusValue">Done</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Street:</span>
+                    <span class="status-value" id="streetValue">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Pairs:</span>
+                    <span class="status-value" id="pairCountValue">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">CPU Cores:</span>
+                    <span class="status-value" id="cpuCoresValue">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Runtime:</span>
+                    <span class="status-value" id="runtimeValue">-</span>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="loading hidden">
+                <div class="spinner"></div>
+                <div>Analyzing pairs...</div>
+            </div>
+
+            <!-- Results Table -->
+            <div id="resultsTable" class="results-table hidden">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Pair</th>
+                            <th>Buy</th>
+                            <th>Reverse Buyer</th>
+                            <th>Price</th>
+                            <th>Rev Buy Hit %</th>
+                            <th>Disparity ASC (+EV)</th>
+                            <th>RvsPrice</th>
+                            <th>HitRate %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Bottom Cards -->
+            <div id="bottomCards" class="bottom-cards hidden">
+                <div class="result-card best">
+                    <h4>🎯 Most Negative — Best Buy</h4>
+                    <div id="bestBuyDetails"></div>
+                </div>
+                <div class="result-card worst">
+                    <h4>⚠️ Most Positive — Worst Buy</h4>
+                    <div id="worstBuyDetails"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/equity_dashboard.js"></script>
+</body>
+</html>

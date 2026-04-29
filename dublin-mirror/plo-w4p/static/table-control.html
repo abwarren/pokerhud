@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N4P Remote Table Control</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .header {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      letter-spacing: 2px;
+    }
+
+    .test-badge {
+      background: #ff6b35;
+      padding: 8px 16px;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 0.9em;
+    }
+
+    .table-container {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 30px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .table-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .board-display {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+
+    .card {
+      color: #ffffff;
+      padding: 15px 10px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1.2em;
+      min-width: 50px;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .card.red {
+      background: #ff0000;
+    }
+
+    .card.blue {
+      background: #0066ff;
+    }
+
+    .card.green {
+      background: #00aa00;
+    }
+
+    .card.black {
+      background: #000000;
+    }
+
+    .seats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    @media (max-width: 1200px) {
+      .seats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .seats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .seat-card {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 12px;
+      border: 3px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .seat-card.connected {
+      border-color: #4caf50;
+    }
+
+    .seat-card.empty {
+      opacity: 0.5;
+    }
+
+    .seat-card.stale {
+      border-color: #ff5722;
+      opacity: 0.7;
+      background: rgba(255, 87, 34, 0.1);
+    }
+
+    .seat-card.action-on {
+      border-color: #ffc107;
+      animation: blink-border 1s infinite;
+    }
+
+    @keyframes blink-border {
+      0%, 100% {
+        border-color: #ffc107;
+        box-shadow: 0 0 20px #ffc107;
+      }
+      50% {
+        border-color: #ff5722;
+        box-shadow: 0 0 40px #ff5722;
+      }
+    }
+
+    .seat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .seat-title {
+      font-size: 0.95em;
+      font-weight: bold;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-left: 6px;
+    }
+
+    .status-dot.live {
+      background: #4caf50;
+      box-shadow: 0 0 8px #4caf50;
+    }
+
+    .status-dot.offline {
+      background: #666;
+    }
+
+    .dealer-marker {
+      background: #ffc107;
+      color: #000;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.7em;
+      font-weight: bold;
+    }
+
+    .seat-info {
+      margin-bottom: 8px;
+      font-size: 0.85em;
+    }
+
+    .pre-actions {
+      margin: 6px 0;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+    }
+
+    .pre-action-item {
+      display: flex;
+      align-items: center;
+      margin: 3px 0;
+    }
+
+    .pre-action-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin-right: 6px;
+      cursor: pointer;
+    }
+
+    .pre-action-item label {
+      cursor: pointer;
+      font-size: 0.75em;
+    }
+
+    .seat-info div {
+      margin: 3px 0;
+    }
+
+    .hole-cards {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .hole-card {
+      color: #ffffff;
+      padding: 6px 4px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.75em;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .hole-card.red {
+      background: #ff0000;
+    }
+
+    .hole-card.blue {
+      background: #0066ff;
+    }
+
+    .hole-card.green {
+      background: #00aa00;
+    }
+
+    .hole-card.black {
+      background: #000000;
+    }
+
+    .action-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .action-btn {
+      padding: 6px 4px;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.7em;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-fold {
+      background: #f44336;
+      color: white;
+    }
+
+    .btn-check {
+      background: #4caf50;
+      color: white;
+    }
+
+    .btn-call {
+      background: #2196f3;
+      color: white;
+    }
+
+    .btn-raise {
+      background: #ff5722;
+      color: white;
+      font-weight: bold;
+    }
+
+    .btn-cashout {
+      background: #ffc107;
+      color: #000;
+      font-weight: bold;
+    }
+
+    .btn-check-fold {
+      background: #ff9800;
+      color: white;
+      grid-column: span 2;
+    }
+
+    .btn-check-call {
+      background: #9c27b0;
+      color: white;
+      grid-column: span 2;
+    }
+
+    .btn-clear {
+      background: #666;
+      color: white;
+      grid-column: span 3;
+    }
+
+    .pending-badge {
+      background: #ff6b35;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      display: inline-block;
+      margin-top: 10px;
+    }
+
+    .command-log {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 20px;
+      border-radius: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .command-log h3 {
+      margin-bottom: 15px;
+    }
+
+    .log-entry {
+      padding: 8px;
+      margin: 5px 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+      font-size: 0.9em;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .waiting-message {
+      text-align: center;
+      padding: 60px 20px;
+      font-size: 1.5em;
+      opacity: 0.7;
+    }
+
+    .pot-display {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #ffc107;
+    }
+
+    .street-display {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 8px 16px;
+      border-radius: 5px;
+      display: inline-block;
+    }
+
+    .wait-bb-control {
+      padding: 5px 10px;
+      background: #2a2a2a;
+      border-radius: 4px;
+      margin-top: 5px;
+    }
+
+    .wait-bb-control label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .rebuy-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-top: 10px;
+      padding: 10px;
+      background: #1a1a1a;
+      border-radius: 4px;
+    }
+
+    .btn-rebuy-max {
+      background: #ff8800;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-rebuy-min {
+      background: #0088ff;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .rebuy-amount-row {
+      display: flex;
+      gap: 5px;
+    }
+
+    .rebuy-amount-row input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2a2a2a;
+      color: white;
+    }
+
+    .btn-rebuy-custom {
+      background: #00aa44;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .btn-rebuy-max:hover,
+    .btn-rebuy-min:hover,
+    .btn-rebuy-custom:hover {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>N4P // REMOTE TABLE CONTROL</h1>
+    </div>
+    <div class="test-badge">TEST</div>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="command-log">
+    <h3>Command Log</h3>
+    <div id="log-container"></div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let commandLog = [];
+
+    // Format card with color (4-color inverted deck)
+    function formatCard(card) {
+      if (!card) return '';
+      const suit = card.slice(-1);
+      const rank = card.slice(0, -1).toUpperCase();
+      const suitColor = {
+        'h': 'red',    // Hearts = Red
+        'd': 'blue',   // Diamonds = Blue
+        'c': 'green',  // Clubs = Green
+        's': 'black'   // Spades = Black
+      }[suit] || '';
+      const suitSymbol = {
+        'h': '♥',
+        'd': '♦',
+        'c': '♣',
+        's': '♠'
+      }[suit] || suit;
+      return `<span class="card ${suitColor}">${rank}${suitSymbol}</span>`;
+    }
+
+    // Format hole card (4-color inverted deck)
+    function formatHoleCard(card) {
+      if (!card) return '';
+      const suit = card.slice(-1);
+      const rank = card.slice(0, -1).toUpperCase();
+      const suitColor = {
+        'h': 'red',    // Hearts = Red
+        'd': 'blue',   // Diamonds = Blue
+        'c': 'green',  // Clubs = Green
+        's': 'black'   // Spades = Black
+      }[suit] || '';
+      const suitSymbol = {
+        'h': '♥',
+        'd': '♦',
+        'c': '♣',
+        's': '♠'
+      }[suit] || suit;
+      return `<span class="hole-card ${suitColor}">${rank}${suitSymbol}</span>`;
+    }
+
+    // Toggle pre-action checkboxes
+    function togglePreAction(tableId, seatIndex, action, checked) {
+      if (checked) {
+        // Uncheck the other checkbox
+        const otherId = action === 'check_fold' ? 'cc-' + seatIndex : 'cf-' + seatIndex;
+        const otherCheckbox = document.getElementById(otherId);
+        if (otherCheckbox) otherCheckbox.checked = false;
+
+        // Send the pre-action command
+        sendCommand(tableId, seatIndex, action);
+      } else {
+        // Clear pre-action
+        sendCommand(tableId, seatIndex, 'clear_preaction');
+      }
+    }
+
+    // Send command
+    function sendCommand(tableId, seatIndex, commandType, params = {}) {
+      const payload = {
+        table_id: tableId,
+        seat_index: seatIndex,
+        command_type: commandType,
+        ...params  // Spread additional parameters like value
+      };
+
+      fetch(API_BASE + '/commands/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          addToLog(seatIndex, commandType, 'PENDING');
+        } else {
+          console.error('Command failed:', data.error);
+        }
+      })
+      .catch(err => {
+        console.error('Network error:', err);
+      });
+    }
+
+    // Toggle Wait for Big Blind
+    function toggleWaitForBB(tableId, seatIndex) {
+      const checked = document.getElementById(`wait-bb-${seatIndex}`).checked;
+      sendCommand(tableId, seatIndex, 'wait_for_bb', { value: checked });
+    }
+
+    // Rebuy custom amount
+    function rebuyCustomAmount(tableId, seatIndex) {
+      const amount = parseFloat(document.getElementById(`rebuy-amount-${seatIndex}`).value);
+
+      if (!amount || amount <= 0) {
+        alert('Enter valid rebuy amount');
+        return;
+      }
+
+      // Optional confirmation for large amounts
+      if (amount > 100) {
+        if (!confirm(`Rebuy ${amount} ZAR for seat ${seatIndex}?`)) {
+          return;
+        }
+      }
+
+      sendCommand(tableId, seatIndex, 'rebuy_amount', { value: amount });
+
+      // Clear input after queuing
+      document.getElementById(`rebuy-amount-${seatIndex}`).value = '';
+    }
+
+    // Add to command log
+    function addToLog(seatIndex, command, status) {
+      const timestamp = new Date().toLocaleTimeString();
+      commandLog.unshift({
+        timestamp,
+        seat: seatIndex,
+        command,
+        status
+      });
+      commandLog = commandLog.slice(0, 20); // Keep last 20
+      updateLog();
+    }
+
+    // Update log display
+    function updateLog() {
+      const container = document.getElementById('log-container');
+      container.innerHTML = commandLog.map(entry => `
+        <div class="log-entry">
+          <span>${entry.timestamp} | Seat ${entry.seat} | ${entry.command}</span>
+          <span>${entry.status}</span>
+        </div>
+      `).join('');
+    }
+
+    // Determine seat state based on clean data model
+    function getSeatState(seat) {
+      // Source of truth:
+      // - empty/occupied → name existence
+      // - active → DOM action availability (status === 'playing')
+      // - pending → command queue state
+      // - success/error → command result (reserved for future)
+      // - stale/disconnected → snapshot age
+
+      const occupied = !!seat.name;
+      const active = seat.status === 'playing';
+      const pending = !!seat.pending_cmd;
+      const stale = seat.last_seen_ago !== null && seat.last_seen_ago > 30; // 30s threshold
+
+      return {
+        seatNo: seat.seat_index,
+        name: seat.name,
+        stack: seat.stack_zar || 0,
+        occupied: occupied,
+        active: active,
+        pending: pending,
+        error: null, // Reserved for command errors
+        stale: stale
+      };
+    }
+
+    // Render table
+    function renderTable(table) {
+      const app = document.getElementById('app');
+
+      const board = table.board;
+      const boardCards = [
+        ...board.flop,
+        board.turn,
+        board.river
+      ].filter(c => c);
+
+      const boardHtml = boardCards.length > 0
+        ? boardCards.map(formatCard).join('')
+        : '<span style="opacity: 0.5;">Waiting for flop...</span>';
+
+      const seatsHtml = table.seats.map(seat => {
+        const state = getSeatState(seat);
+
+        // Determine can-act based on occupied AND active
+        const canAct = state.occupied && state.active && !state.stale;
+
+        const holeCardsHtml = seat.hole_cards && seat.hole_cards.length > 0
+          ? `<div class="hole-cards">${seat.hole_cards.map(formatHoleCard).join('')}</div>`
+          : '';
+
+        // Status indicator: green if occupied (has name), gray if empty
+        const liveClass = state.occupied ? 'live' : 'offline';
+
+        // Card classes based on state
+        let cardClass = '';
+        if (!state.occupied) {
+          cardClass = 'empty';
+        } else if (state.stale) {
+          cardClass = 'stale';
+        } else if (state.active) {
+          cardClass = 'connected action-on';
+        } else {
+          cardClass = 'connected';
+        }
+
+        // Pending badge
+        const pendingHtml = state.pending
+          ? `<div class="pending-badge">⏳ ${seat.pending_cmd}</div>`
+          : '';
+
+        // Status text
+        let statusText = 'EMPTY';
+        if (state.occupied) {
+          if (state.stale) {
+            statusText = 'DISCONNECTED';
+          } else if (state.pending) {
+            statusText = 'PENDING';
+          } else if (state.active) {
+            statusText = 'ACTIVE';
+          } else {
+            statusText = 'OCCUPIED';
+          }
+        }
+
+        return `
+          <div class="seat-card ${cardClass}">
+            <div class="seat-header">
+              <div>
+                <span class="seat-title">SEAT ${state.seatNo}</span>
+                <span class="status-dot ${liveClass}"></span>
+              </div>
+              ${seat.is_dealer ? '<span class="dealer-marker">DEALER</span>' : ''}
+            </div>
+            <div class="seat-info">
+              <div><strong>${state.name || 'Empty'}</strong></div>
+              <div>ZAR ${state.stack.toFixed(2)}</div>
+              <div>Status: ${statusText}</div>
+              ${holeCardsHtml}
+              ${pendingHtml}
+            </div>
+            <div class="pre-actions">
+              <div class="pre-action-item">
+                <input type="checkbox" id="cf-${state.seatNo}"
+                   onchange="togglePreAction('${table.table_id}', ${state.seatNo}, 'check_fold', this.checked)"
+                   ${!canAct ? 'disabled' : ''}>
+                <label for="cf-${state.seatNo}">Check/Fold</label>
+              </div>
+              <div class="pre-action-item">
+                <input type="checkbox" id="cc-${state.seatNo}"
+                   onchange="togglePreAction('${table.table_id}', ${state.seatNo}, 'check_call', this.checked)"
+                   ${!canAct ? 'disabled' : ''}>
+                <label for="cc-${state.seatNo}">Check/Call</label>
+              </div>
+            </div>
+            <div class="action-buttons">
+              <button class="action-btn btn-fold" ${!canAct ? 'disabled' : ''}
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'fold')">
+                FOLD
+              </button>
+              <button class="action-btn btn-check" ${!canAct ? 'disabled' : ''}
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'check')">
+                CHECK
+              </button>
+              <button class="action-btn btn-call" ${!canAct ? 'disabled' : ''}
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'call')">
+                CALL
+              </button>
+              <button class="action-btn btn-raise" ${!canAct ? 'disabled' : ''}
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'raise_max')">
+                RAISE MAX
+              </button>
+              <button class="action-btn btn-cashout" ${!canAct ? 'disabled' : ''}
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'cashout')">
+                CASHOUT
+              </button>
+            </div>
+
+            ${state.occupied ? `
+            <div class="wait-bb-control">
+              <label>
+                <input type="checkbox" id="wait-bb-${state.seatNo}"
+                  onchange="toggleWaitForBB('${table.table_id}', ${state.seatNo})">
+                Wait for Big Blind
+              </label>
+            </div>
+
+            <div class="rebuy-controls">
+              <button class="btn-rebuy-max"
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'rebuy_max')">
+                REBUY MAX
+              </button>
+              <button class="btn-rebuy-min"
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'rebuy_min')">
+                REBUY MIN
+              </button>
+              <div class="rebuy-amount-row">
+                <input type="number" id="rebuy-amount-${state.seatNo}"
+                  placeholder="Amount" min="0" step="0.01">
+                <button class="btn-rebuy-custom"
+                  onclick="rebuyCustomAmount('${table.table_id}', ${state.seatNo})">
+                  REBUY
+                </button>
+              </div>
+            </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      app.innerHTML = `
+        <div class="table-container">
+          <div class="table-info">
+            <div class="street-display">${table.street}</div>
+            <div class="pot-display">POT: ZAR ${table.pot_zar ? table.pot_zar.toFixed(2) : '0.00'}</div>
+          </div>
+          <div class="board-display">
+            ${boardHtml}
+          </div>
+          <div class="seats-grid">
+            ${seatsHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    // Show waiting message
+    function showWaiting() {
+      // Show empty 9-seat table instead of waiting message
+      const emptyTable = {
+        table_id: "waiting",
+        variant: "plo",
+        street: "WAITING",
+        pot_zar: 0,
+        dealer_seat: null,
+        board: { flop: [], turn: null, river: null },
+        seats: Array.from({ length: 9 }, (_, i) => ({
+          seat_index: i,
+          name: null,
+          stack_zar: 0,
+          hole_cards: [],
+          status: "empty",
+          is_dealer: false,
+          last_seen_ago: null,
+          pending_cmd: null
+        }))
+      };
+      renderTable(emptyTable);
+    }
+
+    // Poll for table updates
+    function poll() {
+      fetch(API_BASE + '/table/latest')
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && data.table) {
+            renderTable(data.table);
+          } else {
+            showWaiting();
+          }
+        })
+        .catch(err => {
+          console.error('Poll error:', err);
+          showWaiting();
+        });
+    }
+
+    // Start polling
+    showWaiting();
+    poll();
+    setInterval(poll, 1000);
+  </script>
+</body>
+</html>

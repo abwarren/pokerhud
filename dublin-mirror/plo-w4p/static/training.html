@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PLO Training System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .panel { border: 2px solid #0f0; padding: 20px; margin: 15px 0; background: #111; }
+        .panel h2 { color: #0ff; margin-bottom: 15px; border-bottom: 1px solid #0f0; padding-bottom: 10px; }
+        
+        /* Remote Control */
+        .status-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }
+        .status-item { background: #222; padding: 10px; border: 1px solid #444; }
+        .status-label { color: #888; font-size: 0.9em; }
+        .status-value { font-size: 1.2em; font-weight: bold; margin-top: 5px; }
+        
+        .game-state { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .state-box { background: #1a1a1a; padding: 15px; border: 1px solid #0f0; }
+        .state-label { color: #0ff; font-size: 0.85em; margin-bottom: 5px; }
+        .cards { display: flex; gap: 5px; flex-wrap: wrap; }
+        .card { background: #fff; color: #000; padding: 8px 12px; border-radius: 4px; font-weight: bold; min-width: 45px; text-align: center; }
+        .card.heart, .card.diamond { color: #f00; }
+        
+        .actions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+        button { background: #0f0; color: #000; border: none; padding: 15px; font-size: 1.1em; font-weight: bold; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        button:hover:not(:disabled) { background: #0ff; transform: scale(1.05); }
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
+        button.danger { background: #f00; color: #fff; }
+        button.warning { background: #ff0; color: #000; }
+        button.primary { background: #00f; color: #fff; }
+        
+        .sizing { margin-top: 15px; display: flex; gap: 10px; align-items: center; }
+        .sizing input { background: #222; border: 1px solid #0f0; color: #0f0; padding: 8px; font-size: 1em; width: 150px; }
+        
+        /* Training Panel */
+        .training-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        
+        /* Textarea */
+        textarea { width: 100%; height: 300px; background: #000; color: #0f0; border: 2px solid #0f0; padding: 15px; font-family: 'Courier New', monospace; font-size: 1em; resize: vertical; }
+        .textarea-controls { display: flex; gap: 10px; margin-top: 10px; }
+        .textarea-controls button { flex: 1; }
+        
+        .indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+        .indicator.online { background: #0f0; }
+        .indicator.offline { background: #f00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 20px; color: #0ff;">PLO TRAINING SYSTEM</h1>
+        
+        <!-- REMOTE CONTROL -->
+        <div class="panel">
+            <h2>🎮 REMOTE CONTROL</h2>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-label">API Status</div>
+                    <div class="status-value"><span class="indicator online" id="api-indicator"></span><span id="api-status">Connected</span></div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Hero Seat</div>
+                    <div class="status-value" id="hero-seat">--</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Game Status</div>
+                    <div class="status-value" id="game-status">Waiting</div>
+                </div>
+            </div>
+            
+            <div class="game-state">
+                <div class="state-box">
+                    <div class="state-label">HERO CARDS</div>
+                    <div class="cards" id="hero-cards">--</div>
+                </div>
+                <div class="state-box">
+                    <div class="state-label">BOARD</div>
+                    <div class="cards" id="board-cards">--</div>
+                </div>
+                <div class="state-box">
+                    <div class="state-label">POT</div>
+                    <div class="status-value" id="pot">R 0</div>
+                </div>
+                <div class="state-box">
+                    <div class="state-label">STREET</div>
+                    <div class="status-value" id="street">--</div>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button class="danger" onclick="sendCommand('fold')" id="btn-fold">FOLD</button>
+                <button onclick="sendCommand('check')" id="btn-check">CHECK</button>
+                <button onclick="sendCommand('call')" id="btn-call">CALL</button>
+                <button onclick="sendCommand('bet')" id="btn-bet">BET</button>
+                <button class="primary" onclick="sendCommand('raise')" id="btn-raise">RAISE</button>
+                <button class="warning" onclick="sendCommand('all_in')" id="btn-allin">ALL-IN</button>
+            </div>
+            
+            <div class="actions" style="margin-top: 10px;">
+                <button onclick="sendCommand('wait_bb')">Wait BB</button>
+                <button onclick="sendCommand('sit_in')">Sit In</button>
+                <button onclick="sendCommand('sit_out')">Sit Out</button>
+                <button onclick="sendCommand('pause')">Pause Bot</button>
+                <button onclick="sendCommand('resume')">Resume Bot</button>
+                <button onclick="refreshState()">Refresh</button>
+            </div>
+            
+            <div class="sizing">
+                <label>Bet Size:</label>
+                <input type="number" id="bet-size" placeholder="Amount" value="20">
+                <button onclick="sendCommand('bet', getValue('bet-size'))">Custom Bet</button>
+                <button onclick="sendCommand('raise', getValue('bet-size'))">Custom Raise</button>
+            </div>
+        </div>
+        
+        <!-- TRAINING PANEL -->
+        <div class="panel">
+            <h2>🎓 TRAINING PANEL</h2>
+            <div class="training-actions">
+                <button onclick="trainBot()">Train Bot</button>
+                <button onclick="runReview()">Run Review</button>
+                <button onclick="markCorrect()">Mark Correct</button>
+                <button onclick="markIncorrect()">Mark Incorrect</button>
+                <button onclick="saveSample()">Save Sample</button>
+            </div>
+        </div>
+        
+        <!-- ASCII HANDS TEXTAREA -->
+        <div class="panel">
+            <h2>📝 ASCII HANDS</h2>
+            <textarea id="hands-textarea" placeholder="Paste ASCII hands here...&#10;&#10;Example:&#10;4c2hTsKs&#10;9s8dThTc&#10;Qd2c5sJd&#10;Kh7d7s3c&#10;..."></textarea>
+            <div class="textarea-controls">
+                <button onclick="saveHands()">💾 Save</button>
+                <button onclick="clearHands()">🗑️ Clear</button>
+                <button onclick="loadHands()">📂 Load Latest</button>
+                <button onclick="exportHands()">📤 Export</button>
+            </div>
+            <div style="margin-top: 10px; color: #888; font-size: 0.9em;" id="hand-status">Last saved: Never</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.protocol + '//' + window.location.host + '/api';
+        let currentState = null;
+        
+        // Poll state every second
+        setInterval(refreshState, 1000);
+        refreshState();
+        
+        async function refreshState() {
+            try {
+                const r = await fetch(API_BASE + '/state');
+                const data = await r.json();
+                
+                if (data.ok && data.state) {
+                    currentState = data.state;
+                    updateUI(data.state);
+                    updateIndicator('online');
+                } else {
+                    updateIndicator('offline');
+                }
+            } catch (e) {
+                console.error('State fetch failed:', e);
+                updateIndicator('offline');
+            }
+        }
+        
+        function updateUI(state) {
+            document.getElementById('api-status').textContent = 'Connected';
+            document.getElementById('hero-seat').textContent = state.hero_detected ? `Seat ${state.hero_seat}` : 'Not seated';
+            document.getElementById('game-status').textContent = state.in_hand ? 'In Hand' : (state.seated ? 'Seated' : 'Not Seated');
+            document.getElementById('street').textContent = state.street.toUpperCase();
+            document.getElementById('pot').textContent = `R ${state.pot_zar || 0}`;
+            
+            // Hero cards
+            const heroEl = document.getElementById('hero-cards');
+            heroEl.innerHTML = state.hero_cards.length ? 
+                state.hero_cards.map(c => `<div class="card ${getSuit(c)}">${c}</div>`).join('') : 
+                '--';
+            
+            // Board
+            const boardEl = document.getElementById('board-cards');
+            boardEl.innerHTML = state.board_cards.length ? 
+                state.board_cards.map(c => `<div class="card ${getSuit(c)}">${c}</div>`).join('') : 
+                '--';
+            
+            // Enable/disable buttons
+            const canAct = state.can_act;
+            const allowed = state.allowed_actions || [];
+            
+            document.getElementById('btn-fold').disabled = !canAct || !allowed.includes('fold');
+            document.getElementById('btn-check').disabled = !canAct || !allowed.includes('check');
+            document.getElementById('btn-call').disabled = !canAct || !allowed.includes('call');
+            document.getElementById('btn-bet').disabled = !canAct || !allowed.includes('bet');
+            document.getElementById('btn-raise').disabled = !canAct || !allowed.includes('raise');
+            document.getElementById('btn-allin').disabled = !canAct || !allowed.includes('all_in');
+        }
+        
+        function getSuit(card) {
+            const suit = card.slice(-1).toLowerCase();
+            return (suit === 'h' || suit === 'd') ? 'heart diamond' : 'club spade';
+        }
+        
+        function updateIndicator(status) {
+            const ind = document.getElementById('api-indicator');
+            const statusEl = document.getElementById('api-status');
+            if (status === 'online') {
+                ind.className = 'indicator online';
+                statusEl.textContent = 'Connected';
+            } else {
+                ind.className = 'indicator offline';
+                statusEl.textContent = 'Offline';
+            }
+        }
+        
+        async function sendCommand(action, value) {
+            try {
+                const payload = { action };
+                if (value) payload.value = value;
+                
+                const r = await fetch(API_BASE + '/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await r.json();
+                if (data.ok) {
+                    console.log(`✅ Command ${action} queued:`, data.command_id);
+                } else {
+                    console.error(`❌ Command ${action} failed:`, data.error);
+                    alert(`Command failed: ${data.error}`);
+                }
+            } catch (e) {
+                console.error('Command failed:', e);
+                alert('Command failed: ' + e.message);
+            }
+        }
+        
+        function getValue(id) {
+            return parseInt(document.getElementById(id).value) || 0;
+        }
+        
+        // Training functions
+        function trainBot() { console.log('Train bot clicked'); alert('Training module coming soon'); }
+        function runReview() { console.log('Run review clicked'); alert('Review module coming soon'); }
+        function markCorrect() { console.log('Mark correct clicked'); alert('Marked as correct'); }
+        function markIncorrect() { console.log('Mark incorrect clicked'); alert('Marked as incorrect'); }
+        function saveSample() { console.log('Save sample clicked'); alert('Sample saved'); }
+        
+        // Textarea functions
+        function saveHands() {
+            const text = document.getElementById('hands-textarea').value;
+            localStorage.setItem('ascii_hands', text);
+            localStorage.setItem('ascii_hands_timestamp', new Date().toISOString());
+            updateHandStatus();
+            alert('Hands saved to local storage');
+        }
+        
+        function clearHands() {
+            if (confirm('Clear all hands?')) {
+                document.getElementById('hands-textarea').value = '';
+                saveHands();
+            }
+        }
+        
+        function loadHands() {
+            const text = localStorage.getItem('ascii_hands') || '';
+            document.getElementById('hands-textarea').value = text;
+            updateHandStatus();
+        }
+        
+        function exportHands() {
+            const text = document.getElementById('hands-textarea').value;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hands_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+        }
+        
+        function updateHandStatus() {
+            const ts = localStorage.getItem('ascii_hands_timestamp');
+            if (ts) {
+                const date = new Date(ts);
+                document.getElementById('hand-status').textContent = `Last saved: ${date.toLocaleString()}`;
+            }
+        }
+        
+        // Load saved hands on startup
+        loadHands();
+    </script>
+</body>
+</html>

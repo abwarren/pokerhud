@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Remote Table Control</title>
+  <style>
+    :root {
+      /* Color Palette */
+      --color-primary: #4caf50;
+      --color-warning: #ffc107;
+      --color-danger: #f44336;
+      --color-info: #2196f3;
+
+      /* Spacing */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 12px;
+      --spacing-lg: 20px;
+
+      /* Border Radius */
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 10px;
+
+      /* Transitions */
+      --transition-fast: 0.15s;
+      --transition-normal: 0.2s;
+      --transition-slow: 0.3s;
+
+      /* Shadows */
+      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+      --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: #fff;
+      margin: 0;
+      padding: 10px;
+    }
+
+    .header {
+      background: rgba(0, 0, 0, 0.3);
+      padding: var(--spacing-lg);
+      border-radius: var(--radius-xl);
+      margin-bottom: var(--spacing-lg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--radius-md);
+      font-size: 0.85em;
+      background: rgba(0, 0, 0, 0.3);
+      margin-left: var(--spacing-lg);
+    }
+    .status-indicator {
+      width: var(--spacing-md);
+      height: var(--spacing-md);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    .status-indicator.connected { background: var(--color-primary); animation: none; }
+    .status-indicator.connecting { background: var(--color-warning); }
+    .status-indicator.disconnected { background: var(--color-danger); animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .status-text { font-weight: 500; }
+    .status-details { font-size: 0.8em; opacity: 0.8; margin-left: 8px; }
+
+    .header h1 {
+      font-size: 2em;
+      letter-spacing: 2px;
+    }
+
+    .table-container {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 30px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .table-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .board-display {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-lg);
+      padding: var(--spacing-lg);
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-xl);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .card {
+      color: #ffffff;
+      padding: 15px 10px;
+      border-radius: var(--radius-lg);
+      font-weight: bold;
+      font-size: 1.2em;
+      min-width: 50px;
+      text-align: center;
+      box-shadow: var(--shadow-md),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transition: transform var(--transition-fast);
+    }
+
+    .card:hover {
+      transform: scale(1.05);
+    }
+
+    .card.red { background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%); }
+    .card.blue { background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%); }
+    .card.green { background: linear-gradient(135deg, #00aa00 0%, #008800 100%); }
+    .card.black { background: linear-gradient(135deg, #333 0%, #000 100%); }
+
+    .pending-badge {
+      background: #ff6b35; color: white;
+      padding: 4px 8px; border-radius: 3px;
+      font-size: 0.8em; display: inline-block; margin-top: 10px;
+    }
+
+    .command-log {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 20px; border-radius: 10px;
+      max-height: 300px; overflow-y: auto;
+    }
+    .command-log h3 { margin-bottom: 15px; }
+
+    .log-entry {
+      padding: 8px; margin: 5px 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 5px; font-size: 0.9em;
+      display: flex; justify-content: space-between;
+    }
+
+    .pot-display {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: var(--color-warning);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .street-display {
+      background: rgba(255, 255, 255, 0.2);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--radius-md);
+      display: inline-block;
+      font-weight: 600;
+      box-shadow: var(--shadow-sm);
+      transition: all var(--transition-normal);
+    }
+
+    .street-display:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.05);
+    }
+
+    /* ═══ COMPACT GRID LAYOUT ═══ */
+    .seats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+      max-width: 1800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    @media (max-width: 1200px) {
+      .seats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+      .seats-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ═══ SEAT CARD COMPACT ═══ */
+    .seat-card {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-sm);
+      border: 3px solid transparent;
+      transition: all var(--transition-slow);
+      min-height: 280px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .seat-card.connected {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 8px rgba(76, 175, 80, 0.3);
+    }
+    .seat-card.empty {
+      opacity: 0.5;
+      filter: grayscale(30%);
+    }
+    .seat-card.stale {
+      border-color: #ff5722;
+      opacity: 0.7;
+      background: rgba(255, 87, 34, 0.1);
+    }
+    .seat-card.action-on {
+      border-color: var(--color-warning);
+      animation: blink-border 1s infinite;
+    }
+
+    @keyframes blink-border {
+      0%, 100% {
+        border-color: var(--color-warning);
+        box-shadow: 0 0 20px var(--color-warning);
+      }
+      50% {
+        border-color: #ff5722;
+        box-shadow: 0 0 40px #ff5722;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .seat-card {
+      /* animation removed - causes flicker */
+    }
+
+    .seat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .seat-title { font-size: 0.85em; font-weight: bold; }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-left: 4px;
+    }
+    .status-dot.live { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+    .status-dot.offline { background: #666; }
+
+    .dealer-marker {
+      background: #ffc107; color: #000;
+      padding: 2px 6px; border-radius: 3px;
+      font-size: 0.65em; font-weight: bold;
+    }
+
+    .seat-info {
+      margin-bottom: 6px;
+      font-size: 0.75em;
+      line-height: 1.3;
+    }
+
+    .hole-cards {
+      display: flex;
+      gap: 3px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .hole-card {
+      color: #ffffff;
+      padding: var(--spacing-xs) 3px;
+      border-radius: var(--radius-sm);
+      font-weight: bold;
+      font-size: 0.65em;
+      min-width: 24px;
+      text-align: center;
+      box-shadow: var(--shadow-sm),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      transition: transform var(--transition-fast);
+    }
+
+    .hole-card:hover {
+      transform: translateY(-1px);
+    }
+
+    .hole-card.red { background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%); }
+    .hole-card.blue { background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%); }
+    .hole-card.green { background: linear-gradient(135deg, #00aa00 0%, #008800 100%); }
+    .hole-card.black { background: linear-gradient(135deg, #333 0%, #000 100%); }
+
+    /* ═══ POKERBET-STYLE BUTTON GRID (3x3) ═══ */
+    .f-right-column-p-remote {
+      margin-top: 8px;
+    }
+
+    .f-right-column-p-remote ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+
+    .f-right-column-p-remote li {
+      position: relative;
+    }
+
+    .action-btn-poker {
+      width: 100%;
+      padding: 10px 6px;
+      border: 2px solid transparent;
+      border-radius: var(--radius-md);
+      font-weight: 800;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      font-size: 0.7em;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: var(--shadow-md),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                  inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .action-btn-poker:hover:not(:disabled) {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+    }
+
+    .action-btn-poker:focus:not(:disabled) {
+      outline: 2px solid rgba(255, 255, 255, 0.6);
+      outline-offset: 2px;
+    }
+
+    .action-btn-poker:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: var(--shadow-sm),
+                  inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .action-btn-poker:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      filter: grayscale(50%);
+    }
+
+    /* ═══ BUTTON COLORS (3D Style) ═══ */
+    .action-btn-poker.fold {
+      background: linear-gradient(180deg, #e53935 0%, #c62828 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .action-btn-poker.fold:hover:not(:disabled) {
+      background: linear-gradient(180deg, #ef5350 0%, #d32f2f 100%);
+    }
+
+    .action-btn-poker.check_call {
+      background: linear-gradient(180deg, #43a047 0%, #2e7d32 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .action-btn-poker.check_call:hover:not(:disabled) {
+      background: linear-gradient(180deg, #66bb6a 0%, #388e3c 100%);
+    }
+
+    .action-btn-poker.raise {
+      background: linear-gradient(180deg, #ff8a65 0%, #ff5722 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .action-btn-poker.raise:hover:not(:disabled) {
+      background: linear-gradient(180deg, #ffab91 0%, #ff6f00 100%);
+    }
+
+    .action-btn-poker.min {
+      background: linear-gradient(180deg, #607d8b 0%, #455a64 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .action-btn-poker.min:hover:not(:disabled) {
+      background: linear-gradient(180deg, #78909c 0%, #546e7a 100%);
+    }
+
+    .action-btn-poker.max {
+      background: linear-gradient(180deg, #ffd54f 0%, #fbc02d 100%);
+      color: #000;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      font-weight: 900;
+    }
+    .action-btn-poker.max:hover:not(:disabled) {
+      background: linear-gradient(180deg, #ffeb3b 0%, #fdd835 100%);
+    }
+
+    .action-btn-poker.bet {
+      background: linear-gradient(180deg, #ff8a50 0%, #e65100 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .action-btn-poker.bet:hover:not(:disabled) {
+      background: linear-gradient(180deg, #ff9e80 0%, #f4511e 100%);
+    }
+
+    .action-btn-poker.allin {
+      background: linear-gradient(180deg, #d32f2f 0%, #b71c1c 100%);
+      color: white;
+      font-weight: 900;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      animation: pulse-allin 2s infinite;
+    }
+    @keyframes pulse-allin {
+      0%, 100% { box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 15px rgba(211, 47, 47, 0.5); }
+      50% { box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 25px rgba(211, 47, 47, 0.8); }
+    }
+    .action-btn-poker.allin:hover:not(:disabled) {
+      background: linear-gradient(180deg, #e53935 0%, #c62828 100%);
+    }
+
+    .action-btn-poker.buyin {
+      background: linear-gradient(180deg, #42a5f5 0%, #1976d2 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    .action-btn-poker.buyin:hover:not(:disabled) {
+      background: linear-gradient(180deg, #64b5f6 0%, #1e88e5 100%);
+    }
+
+    .action-btn-poker.cashout {
+      background: linear-gradient(180deg, #c62828 0%, #b71c1c 100%);
+      color: white;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+    .action-btn-poker.cashout:hover:not(:disabled) {
+      background: linear-gradient(180deg, #d32f2f 0%, #c62828 100%);
+    }
+
+    /* ═══ PRESELECTED STATE (Orange Border) ═══ */
+    .action-btn-poker.preselected {
+      border-color: #ff6f00;
+      animation: pulse-preselect 2s infinite;
+      position: relative;
+    }
+
+    .action-btn-poker.preselected::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(45deg, #ff6f00, #ff9800);
+      opacity: 0.3;
+      z-index: -1;
+      animation: pulse-glow 2s infinite;
+    }
+
+    @keyframes pulse-preselect {
+      0%, 100% { box-shadow: 0 0 12px rgba(255, 111, 0, 0.6); }
+      50% { box-shadow: 0 0 20px rgba(255, 111, 0, 0.9); }
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.05); }
+    }
+
+    /* ═══ AVAILABLE STATE (Green Glow - button ready on PokerBet) ═══ */
+    .action-btn-poker.available {
+      border-color: #00e676;
+      animation: pulse-available 1.5s infinite;
+    }
+
+    @keyframes pulse-available {
+      0%, 100% { box-shadow: 0 0 16px rgba(0, 230, 118, 0.8); }
+      50% { box-shadow: 0 0 24px rgba(0, 230, 118, 1); }
+    }
+
+    /* ═══ BOTH PRESELECTED + AVAILABLE ═══ */
+    .action-btn-poker.preselected.available {
+      border-color: #00e676;
+      box-shadow: 0 0 20px rgba(0, 230, 118, 1), 0 0 12px rgba(255, 111, 0, 0.6);
+      animation: pulse-combo 1.5s infinite;
+    }
+
+    @keyframes pulse-combo {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    /* ═══ HOVER EFFECTS ═══ */
+    .action-btn-poker:hover:not(:disabled) {
+      transform: translateY(-2px);
+      filter: brightness(1.2);
+    }
+
+    /* ═══ SELECTOR HINT ═══ */
+    .selector-hint { display: none;
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 0.5em;
+      opacity: 0.5;
+      font-family: 'Courier New', monospace;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* ═══ PRE-ACTION CHECKBOXES (Bottom of card) ═══ */
+    .pre-actions {
+      margin: var(--spacing-sm) 0 0 0;
+      padding: var(--spacing-xs);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-sm);
+      font-size: 0.65em;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all var(--transition-normal);
+    }
+
+    .pre-actions:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .pre-action-item {
+      display: flex;
+      align-items: center;
+      margin: var(--spacing-xs) 0;
+      padding: var(--spacing-xs);
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
+    }
+
+    .pre-action-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .pre-action-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin-right: var(--spacing-xs);
+      cursor: pointer;
+      accent-color: var(--color-primary);
+    }
+
+    .pre-action-item input[type="checkbox"]:focus {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    .pre-action-item label {
+      cursor: pointer;
+      font-size: 0.9em;
+      user-select: none;
+      transition: color var(--transition-fast);
+    }
+
+    .pre-action-item:hover label {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* ═══ BET SLIDER SECTION ═══ */
+    .bet-slider-section {
+      margin: var(--spacing-sm) 0;
+      padding: var(--spacing-sm);
+      background: rgba(255, 152, 0, 0.1);
+      border: 1px solid rgba(255, 152, 0, 0.3);
+      border-radius: var(--radius-md);
+      transition: all var(--transition-normal);
+    }
+
+    .bet-slider-section:hover {
+      background: rgba(255, 152, 0, 0.15);
+      border-color: rgba(255, 152, 0, 0.5);
+    }
+
+    .bet-slider-label {
+      font-size: 0.65em;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #ffb74d;
+      margin-bottom: var(--spacing-sm);
+      font-weight: bold;
+      display: block;
+    }
+
+    .bet-slider-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .bet-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 8px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(90deg, #ff5722 0%, #ff9800 50%, #ffc107 100%);
+      outline: none;
+      cursor: pointer;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+      transition: all var(--transition-normal);
+    }
+
+    .bet-slider:hover {
+      height: 10px;
+    }
+
+    .bet-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      border: 3px solid #ff5722;
+      transition: all var(--transition-fast);
+    }
+
+    .bet-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(255, 87, 34, 0.6);
+    }
+
+    .bet-slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      border: 3px solid #ff5722;
+      transition: all var(--transition-fast);
+    }
+
+    .bet-slider::-moz-range-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(255, 87, 34, 0.6);
+    }
+
+    .bet-input {
+      width: 80px;
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 152, 0, 0.5);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 0.75em;
+      text-align: center;
+      font-weight: bold;
+      transition: all var(--transition-fast);
+    }
+
+    .bet-input:hover:not(:disabled) {
+      background: rgba(0, 0, 0, 0.5);
+      border-color: rgba(255, 152, 0, 0.7);
+    }
+
+    .bet-input:focus {
+      outline: none;
+      border-color: #ff9800;
+      box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
+      background: rgba(0, 0, 0, 0.6);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <div>
+      <h1>REMOTE TABLE CONTROL</h1>
+      <div class="connection-status">
+        <div class="status-indicator connecting" id="status-dot"></div>
+        <div>
+          <span class="status-text" id="status-text">Connecting...</span>
+          <span class="status-details" id="status-details"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app"></div>
+
+
+  <script>
+    const API_BASE = '/api';
+    let commandLog = []; // Disabled - not logging
+    let connectionState = 'disconnected'; // Not connecting to backend
+    let lastSuccessfulPoll = null;
+    let consecutiveErrors = 0;
+    let backoffDelay = 1000;
+    let maxBackoff = 3000;
+
+
+    // Button states (preselected, available)
+    let buttonStates = {}; // key: "tableId:seatIndex:buttonType", value: {preselected: bool, available: bool}
+
+    function updateConnectionStatus(state, details) {
+      connectionState = state;
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      const detailsEl = document.getElementById('status-details');
+
+      if (!dot || !text || !detailsEl) return;
+
+      dot.className = 'status-indicator ' + state;
+
+      if (state === 'connected') {
+        text.textContent = 'Connected';
+        lastSuccessfulPoll = new Date();
+        consecutiveErrors = 0;
+        backoffDelay = 1000;
+        detailsEl.textContent = details || 'Live';
+      } else if (state === 'connecting') {
+        text.textContent = 'Connecting...';
+        detailsEl.textContent = details || '';
+      } else if (state === 'disconnected') {
+        text.textContent = 'Disconnected';
+        detailsEl.textContent = details || 'Reconnecting...';
+      }
+    }
+
+    setInterval(function() {
+      if (connectionState === 'connected' && lastSuccessfulPoll) {
+        const sec = Math.floor((new Date() - lastSuccessfulPoll) / 1000);
+        const el = document.getElementById('status-details');
+        if (sec < 120 && el) {
+          el.textContent = sec + 's ago';
+        }
+      }
+    }, 5000);
+
+    function formatCard(card) {
+      if (!card) return '';
+      const suit = card.slice(-1);
+      const rank = card.slice(0, -1).toUpperCase();
+      const suitColor = { 'h': 'red', 'd': 'blue', 'c': 'green', 's': 'black' }[suit] || '';
+      const suitSymbol = { 'h': '♥', 'd': '♦', 'c': '♣', 's': '♠' }[suit] || suit;
+      return `<span class="card ${suitColor}">${rank}${suitSymbol}</span>`;
+    }
+
+    function formatHoleCard(card) {
+      if (!card) return '';
+      const suit = card.slice(-1);
+      const rank = card.slice(0, -1).toUpperCase();
+      const suitColor = { 'h': 'red', 'd': 'blue', 'c': 'green', 's': 'black' }[suit] || '';
+      const suitSymbol = { 'h': '♥', 'd': '♦', 'c': '♣', 's': '♠' }[suit] || suit;
+      return `<span class="hole-card ${suitColor}">${rank}${suitSymbol}</span>`;
+    }
+
+    // Bet slider sync functions
+    function updateBetInput(seatNo, value) {
+      const input = document.getElementById(`betinput-${seatNo}`);
+      if (input) {
+        input.value = Math.round(value);
+      }
+    }
+
+    function updateBetSlider(seatNo, value) {
+      const slider = document.getElementById(`slider-${seatNo}`);
+      if (slider) {
+        slider.value = value;
+      }
+    }
+
+    function getBetAmount(seatIndex) {
+      const input = document.getElementById(`betinput-${seatIndex}`);
+      return input ? parseFloat(input.value) : undefined;
+    }
+
+    // Toggle button preselect
+    function togglePreselect(tableId, seatIndex, buttonType) {
+      const key = `${tableId}:${seatIndex}:${buttonType}`;
+      if (!buttonStates[key]) buttonStates[key] = {preselected: false, available: false};
+
+      buttonStates[key].preselected = !buttonStates[key].preselected;
+
+      // Send command to backend
+      if (buttonStates[key].preselected) {
+        // For BET and RAISE, include the bet amount from slider
+        const amount = (buttonType === 'bet' || buttonType === 'raise')
+          ? getBetAmount(seatIndex)
+          : undefined;
+        sendCommand(tableId, seatIndex, buttonType, amount);
+      }
+
+      renderTable(currentTableData); // Re-render to update UI
+    }
+
+    // Send command
+    function sendCommand(tableId, seatIndex, commandType, amount) {
+      const body = {
+        table_id: tableId,
+        seat_index: seatIndex,
+        command_type: commandType
+      };
+      if (amount !== undefined) body.amount = amount;
+
+      fetch(API_BASE + '/commands/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          const label = amount ? `${commandType}(${amount})` : commandType;
+          addToLog(seatIndex, label, 'PENDING');
+        } else {
+          console.error('Command failed:', data.error);
+        }
+      })
+      .catch(err => console.error('Network error:', err));
+    }
+
+    function addToLog(seatIndex, command, status) {
+      const timestamp = new Date().toLocaleTimeString();
+      commandLog.unshift({ timestamp, seat: seatIndex, command, status });
+      commandLog = commandLog.slice(0, 20);
+      updateLog();
+    }
+
+    function updateLog() {
+      const container = document.getElementById('log-container');
+      if (!container) return;
+      container.innerHTML = commandLog.map(entry => `
+        <div class="log-entry">
+          <span>${entry.timestamp} | Seat ${entry.seat} | ${entry.command}</span>
+          <span>${entry.status}</span>
+        </div>
+      `).join('');
+    }
+
+    function getSeatState(seat) {
+      const occupied = !!seat.name;
+      const active = seat.status === 'playing';
+      const pending = !!seat.pending_cmd;
+      const stale = seat.last_seen_ago !== null && seat.last_seen_ago > 30;
+
+      return {
+        seatNo: seat.seat_no,
+        name: seat.name,
+        stack: seat.stack_zar || 0,
+        occupied: occupied,
+        active: active,
+        pending: pending,
+        error: null,
+        stale: stale
+      };
+    }
+
+    let currentTableData = null;
+    let lastTableJson = '';
+
+    function renderTable(table) {
+      currentTableData = table;
+      const app = document.getElementById('app');
+
+      const board = table.board;
+      const boardCards = [
+        ...board.flop,
+        board.turn,
+        board.river
+      ].filter(c => c);
+
+      const boardHtml = boardCards.length > 0
+        ? boardCards.map(formatCard).join('')
+        : '<span style="opacity: 0.5;">Waiting for flop...</span>';
+
+      const seatsHtml = table.seats.map(seat => {
+        const state = getSeatState(seat);
+        const canAct = state.occupied && state.active && !state.stale;
+
+        const holeCardsHtml = seat.hole_cards && seat.hole_cards.length > 0
+          ? `<div class="hole-cards">${seat.hole_cards.map(formatHoleCard).join('')}</div>`
+          : '';
+
+        const liveClass = state.occupied ? 'live' : 'offline';
+
+        let cardClass = '';
+        if (!state.occupied) {
+          cardClass = 'empty';
+        } else if (state.stale) {
+          cardClass = 'stale';
+        } else if (state.active) {
+          cardClass = 'connected action-on';
+        } else {
+          cardClass = 'connected';
+        }
+
+        const pendingHtml = state.pending
+          ? `<div style="color: #ff9800; font-size: 0.7em; margin-top: 4px;">⏳ ${seat.pending_cmd}</div>`
+          : '';
+
+        let statusText = 'EMPTY';
+        if (state.occupied) {
+          if (state.stale) {
+            statusText = 'DISCONNECTED';
+          } else if (state.pending) {
+            statusText = 'PENDING';
+          } else if (state.active) {
+            statusText = 'ACTIVE';
+          } else {
+            statusText = 'OCCUPIED';
+          }
+        }
+
+        // PokerBet-style button grid (3x3)
+        const buttons = [
+          {type: 'fold', label: 'FOLD', selector: 'li:nth-child(1)', available: canAct},
+          {type: 'check_call', label: 'CHECK/CALL', selector: 'li:nth-child(2)', available: canAct},
+          {type: 'raise', label: 'RAISE', selector: 'li:nth-child(3)', available: canAct},
+          {type: 'min', label: 'MIN', selector: 'li:nth-child(4)', available: canAct},
+          {type: 'max', label: 'MAX', selector: 'li:nth-child(5)', available: canAct},
+          {type: 'bet', label: 'BET', selector: 'li:nth-child(6)', available: canAct},
+          {type: 'allin', label: 'ALL-IN', selector: 'li:nth-child(7)', available: canAct},
+          {type: 'buyin', label: 'BUY-IN', selector: 'buy-in-modal', available: state.occupied},
+          {type: 'cashout', label: 'CASHOUT', selector: 'special', available: true},
+        ];
+
+        const buttonsHtml = buttons.map(btn => {
+          const key = `${table.table_id}:${state.seatNo}:${btn.type}`;
+          const btnState = buttonStates[key] || {preselected: false, available: false};
+
+          // Update available state from backend
+          btnState.available = btn.available;
+          buttonStates[key] = btnState;
+
+          let classes = `action-btn-poker ${btn.type}`;
+          if (btnState.preselected) classes += ' preselected';
+          if (btnState.available) classes += ' available';
+
+          const disabled = !state.occupied ? 'disabled' : '';
+
+          return `
+            <li>
+              <button class="${classes}" ${disabled}
+                onclick="togglePreselect('${table.table_id}', ${state.seatNo}, '${btn.type}')">
+                ${btn.label}
+                <span class="selector-hint">${btn.selector}</span>
+              </button>
+            </li>
+          `;
+        }).join('');
+
+        return `
+          <div class="seat-card ${cardClass}">
+            <div class="seat-header">
+              <div>
+                <span class="seat-title">SEAT ${state.seatNo}</span>
+                <span class="status-dot ${liveClass}"></span>
+              </div>
+              ${seat.is_dealer ? '<span class="dealer-marker">DEALER</span>' : ''}
+            </div>
+            <div class="seat-info">
+              <div><strong>${state.name || 'Empty'}</strong></div>
+              <div>ZAR ${state.stack.toFixed(2)}</div>
+              <div>Status: ${statusText}</div>
+              ${holeCardsHtml}
+              ${pendingHtml}
+            </div>
+            <div class="bet-slider-section">
+              <label class="bet-slider-label">BET SIZE</label>
+              <div class="bet-slider-controls">
+                <input type="range"
+                  class="bet-slider"
+                  id="slider-${state.seatNo}"
+                  min="0"
+                  max="${Math.max(state.stack, 100)}"
+                  value="${Math.min(state.stack * 0.5, state.stack) || 50}"
+                  ${!state.occupied ? 'disabled' : ''}
+                  oninput="updateBetInput(${state.seatNo}, this.value)">
+                <input type="number"
+                  class="bet-input"
+                  id="betinput-${state.seatNo}"
+                  min="0"
+                  max="${Math.max(state.stack, 100)}"
+                  value="${Math.min(state.stack * 0.5, state.stack).toFixed(0) || 50}"
+                  ${!state.occupied ? 'disabled' : ''}
+                  oninput="updateBetSlider(${state.seatNo}, this.value)">
+              </div>
+            </div>
+            <div class="f-right-column-p-remote">
+              <ul>
+                ${buttonsHtml}
+              </ul>
+            </div>
+            <div class="pre-actions">
+              <div class="pre-action-item">
+                <input type="checkbox" id="cf-${state.seatNo}">
+                <label for="cf-${state.seatNo}">Check/Fold</label>
+              </div>
+              <div class="pre-action-item">
+                <input type="checkbox" id="cc-${state.seatNo}">
+                <label for="cc-${state.seatNo}">Check/Call</label>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      app.innerHTML = `
+        <div class="table-container">
+          <div class="table-info">
+            <div class="street-display">${table.street}</div>
+            <div class="pot-display">POT: ZAR ${table.pot_zar ? table.pot_zar.toFixed(2) : '0.00'}</div>
+          </div>
+          <div class="board-display">
+            ${boardHtml}
+          </div>
+          <div class="seats-grid">
+            ${seatsHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function showWaiting() {
+      const emptyTable = {
+        table_id: "waiting",
+        variant: "plo",
+        street: "WAITING",
+        pot_zar: 0,
+        dealer_seat: null,
+        board: { flop: [], turn: null, river: null },
+        seats: Array.from({ length: 9 }, (_, i) => ({
+          seat_no: i + 1,
+          name: null,
+          stack_zar: 0,
+          hole_cards: [],
+          status: "empty",
+          is_dealer: false,
+          last_seen_ago: null,
+          pending_cmd: null
+        }))
+      };
+      renderTable(emptyTable);
+    }
+
+    function poll() {
+      fetch(API_BASE + '/table/latest')
+        .then(r => r.json())
+        .then(data => {
+          updateConnectionStatus('connected', 'Live');
+          if (data.ok && data.table) {
+            var cmp = Object.assign({}, data.table);
+            delete cmp.last_updated; delete cmp.state_version;
+            (cmp.seats || []).forEach(function(s) { delete s.last_seen; delete s.last_seen_ago; });
+            var j = JSON.stringify(cmp);
+            if (j !== lastTableJson) {
+              lastTableJson = j;
+              renderTable(data.table);
+            }
+          }
+        })
+        .catch(err => {
+          consecutiveErrors++;
+          updateConnectionStatus('disconnected', 'Errors: ' + consecutiveErrors);
+
+
+        });
+    }
+
+    // Start polling
+    poll();
+    setInterval(poll, 1000);
+  </script>
+</body>
+</html>

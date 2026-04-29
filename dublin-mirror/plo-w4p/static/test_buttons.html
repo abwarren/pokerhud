@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Button Test</title>
+<style>
+body { font-family: Arial; background: #111; color: #eee; padding: 20px; }
+.seat { background: #222; border: 2px solid #444; margin: 10px; padding: 15px; width: 300px; }
+.btn { padding: 8px 12px; margin: 3px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.b-fold { background: #e05252; color: white; }
+.b-check { background: #1db954; color: white; }
+.b-call { background: #4a9eda; color: white; }
+.b-raise { background: #e8a020; color: white; }
+.b-exec { background: #818cf8; color: white; }
+.b-cout { background: #c9922a; color: white; }
+</style>
+</head>
+<body>
+<h1>N4P Button Test</h1>
+<div class="seat">
+  <h3>Seat 1 - Test Player</h3>
+  <div>
+    <button class="btn b-fold" onclick="alert('FOLD command')">Fold</button>
+    <button class="btn b-check" onclick="alert('CHECK command')">Check</button>
+    <button class="btn b-call" onclick="alert('CALL command')">Call</button>
+  </div>
+  <div>
+    <button class="btn b-raise" onclick="alert('RAISE MIN command')">Min</button>
+    <button class="btn b-raise" onclick="alert('RAISE HALF command')">½ Pot</button>
+    <button class="btn b-raise" onclick="alert('RAISE POT command')">Pot</button>
+  </div>
+  <div>
+    <button class="btn b-raise" onclick="alert('RAISE MAX command')">Max</button>
+    <button class="btn b-exec" onclick="alert('EXECUTE command')">Execute</button>
+    <button class="btn b-cout" onclick="alert('CASHOUT command')">Cash Out</button>
+  </div>
+</div>
+
+<script>
+console.log('✓ Button test page loaded');
+console.log('✓ All buttons visible');
+</script>
+</body>
+</html>

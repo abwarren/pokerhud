@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>N4P Hand Collector</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 980px;
+      margin: 28px auto;
+      padding: 0 20px 40px;
+      background: #0e0e0e;
+      color: #f0f0f0;
+    }
+    h1 { color: #ffd166; font-size: 20px; margin-bottom: 4px; }
+
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .nav-tab {
+      padding: 6px 16px;
+      background: #11141f;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      color: #666;
+      display: inline-block;
+    }
+    
+    .nav-tab:hover {
+      border-color: #ffd166;
+      color: #ffd166;
+      transform: translateY(-2px);
+    }
+    
+    .nav-tab.active {
+      background: #ffd166;
+      color: #000;
+      border-color: #ffd166;
+      font-weight: bold;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .box {
+      background: #161616;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .box-title {
+      font-size: 10px;
+      font-weight: bold;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      margin-bottom: 10px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 190px;
+      padding: 11px 13px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      border-radius: 6px;
+      border: 1px solid #2e2e2e;
+      background: #0d0d0d;
+      color: #e0e0e0;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #ffd166; }
+
+    .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+
+    button {
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity .12s;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) { opacity: .82; }
+    button:disabled { opacity: .35; cursor: not-allowed; }
+
+    .btn-engine    { background: #10b981; color: #fff; flex: 2; min-width: 160px; font-size: 14px; }
+    .btn-primary   { background: #ffd166; color: #111; }
+    .btn-secondary { background: #222; color: #bbb; border: 1px solid #333; }
+    .btn-sm        { padding: 7px 13px; font-size: 12px; }
+
+    .status-bar {
+      margin-top: 9px;
+      font-size: 12px;
+      min-height: 18px;
+      color: #6ee7b7;
+    }
+    .status-bar.err  { color: #f87171; }
+    .status-bar.info { color: #60a5fa; }
+    .status-bar.warn { color: #fbbf24; }
+
+    /* Live dot */
+    .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #333;
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    .dot.on   { background: #10b981; }
+    .dot.flash { background: #ffd166; }
+
+    /* Auto-fill toast */
+    .toast {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+      background: rgba(16,185,129,.18);
+      color: #10b981;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .toast.show { opacity: 1; }
+
+    /* Results */
+    #results { display: none; }
+    .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+    .chip {
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .c-blue   { background: rgba(96,165,250,.15);  color: #60a5fa; }
+    .c-green  { background: rgba(16,185,129,.15);  color: #10b981; }
+    .c-red    { background: rgba(248, 113,113,.15); color: #f87171; }
+    .c-yellow { background: rgba(255,209,102,.15);  color: #ffd166; }
+
+    .tbl-wrap { overflow-x: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+      text-align: left;
+      padding: 5px 8px;
+      border-bottom: 1px solid #2a2a2a;
+      color: #555;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+    td { padding: 6px 8px; border-bottom: 1px solid #1c1c1c; vertical-align: top; }
+    tr:hover td { background: #1a1a1a; }
+    .hand { font-size: 10px; color: #444; font-family: 'Courier New', monospace; }
+    .ev-neg { color: #10b981; font-weight: bold; }
+    .ev-pos { color: #f87171; font-weight: bold; }
+    .ev-zer { color: #555; }
+
+    code { color: #ffd166; font-size: 11px; word-break: break-all; }
+  </style>
+</head>
+<body>
+
+<h1>&#9824; N4P Hand Collector</h1>
+<div class="nav-tabs" style="margin-bottom: 16px;">
+  <a href="/" class="nav-tab">REMOTE CONTROL</a>
+  <span class="nav-tab active">HAND COLLECTOR</span>
+</div>
+<div class="subtitle">
+  <span class="dot" id="dot"></span>
+  <span id="live-label">Connecting...</span>
+  <span class="toast" id="toast">AUTO-FILLED</span>
+</div>
+
+<!-- ── Textarea ── -->
+<div class="box">
+  <div class="box-title">Hand text</div>
+  <textarea id="ta"
+    placeholder="Hands auto-fill here when the tracker captures a complete flop.&#10;Or paste engine-format text (one hand per line, blank line between samples)."></textarea>
+
+  <div class="row">
+    <button class="btn-engine" id="btn-engine" onclick="sendToEngine()" disabled>
+      &#9654; Send to Engine
+    </button>
+    <button class="btn-primary btn-sm"   onclick="loadLatest()">&#8634; Load Latest</button>
+    <button class="btn-secondary btn-sm" onclick="copyText()">&#9679; Copy</button>
+    <button class="btn-secondary btn-sm" onclick="saveHand()">&#128190; Save</button>
+    <button class="btn-secondary btn-sm" onclick="clearAll()">&#10005; Clear</button>
+  </div>
+  <div class="status-bar" id="status"></div>
+</div>
+
+<!-- ── Results ── -->
+<div class="box" id="results">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div class="box-title" style="margin:0">Engine results</div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>BUY</th>
+          <th>REVERSE BUYER</th>
+          <th>PRICE %</th>
+          <th>Hit %</th>
+          <th>RvsPrice %</th>
+          <th>HitRate %</th>
+          <th>EV</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Save path ── -->
+<div class="box">
+  <div class="box-title">Save directory</div>
+  <code id="save-path">loading...</code>
+</div>
+
+<script>
+  // ── DOM ───────────────────────────────────────────────────────────────────
+  const ta        = document.getElementById('ta');
+  const btnEngine = document.getElementById('btn-engine');
+  const statusEl  = document.getElementById('status');
+  const dotEl     = document.getElementById('dot');
+  const labelEl   = document.getElementById('live-label');
+  const toastEl   = document.getElementById('toast');
+
+  ta.addEventListener('input', () => { btnEngine.disabled = !ta.value.trim(); });
+
+  // ── SocketIO — auto-fill on tracker_aggregate ─────────────────────────────
+  // Socket.IO JS is served from app.py (Flask-SocketIO) at /socket.io/
+  // so this relative src works from any path under nuts4poker.com
+  try {
+    const socket = io({ transports: ['websocket', 'polling'], reconnection: false });
+
+    socket.on('connect', () => {
+      dotEl.className = 'dot on';
+      labelEl.textContent = 'Live — tracker connected';
+    });
+    socket.on('disconnect', () => {
+      dotEl.className = 'dot';
+      labelEl.textContent = 'Disconnected';
+    });
+    socket.on('connect_error', () => {
+      dotEl.className = 'dot';
+      labelEl.textContent = 'Session expired — refresh to reconnect';
+    });
+    socket.on('scanner_cards', data => {
+      // tracker_aggregate = complete hand set from app.py _agg_add()
+      if (data.source !== 'tracker_aggregate') return;
+      if (!data.raw || !data.raw.trim()) return;
+
+      ta.value = data.raw.trim();
+      btnEngine.disabled = false;
+      flash('AUTO-FILLED — ' + (data.variant || ''), 'info');
+      dotEl.className = 'dot flash';
+      toastEl.classList.add('show');
+      setTimeout(() => {
+        dotEl.className = 'dot on';
+        toastEl.classList.remove('show');
+      }, 2000);
+    });
+  } catch(e) {
+    labelEl.textContent = 'SocketIO unavailable';
+  }
+
+  // ── Load latest validated hand ────────────────────────────────────────────
+  async function loadLatest() {
+    flash('Loading latest hand...', 'info');
+    try {
+      const r = await fetch('/api/collector/latest');
+      const d = await r.json();
+      if (!d.ok) { flash('No hands: ' + (d.error || ''), 'err'); return; }
+      ta.value = d.raw;
+      btnEngine.disabled = !ta.value.trim();
+      flash('Loaded ' + d.file.split('/').pop() + (d.variant ? ' · ' + d.variant : ''), 'info');
+    } catch(e) { flash('Load failed: ' + e.message, 'err'); }
+  }
+
+  // ── Send to engine ────────────────────────────────────────────────────────
+  async function sendToEngine() {
+    const text = ta.value.trim();
+    if (!text) return;
+
+    btnEngine.disabled = true;
+    btnEngine.textContent = '⟳ Running...';
+    flash('Sending to equity engine...', 'info');
+    document.getElementById('results').style.display = 'none';
+
+    try {
+      const r = await fetch('/api/batch/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: text }),
+      });
+      const d = await r.json();
+      if (!d.ok) { flash('Engine error: ' + (d.error || 'unknown'), 'err'); return; }
+      renderResults(d);
+      const s   = d.summary || {};
+      const cnt = (d.rows || []).length;
+      flash('Done — ' + cnt + ' pairs · avg EV ' + (s.avg_ev != null ? s.avg_ev.toFixed(2) : '?') + '%');
+    } catch(e) {
+      flash('Request failed: ' + e.message, 'err');
+    } finally {
+      btnEngine.disabled = false;
+      btnEngine.textContent = '▶ Send to Engine';
+    }
+  }
+
+  // ── Render results table ──────────────────────────────────────────────────
+  function renderResults(d) {
+    const rows   = d.rows || [];
+    const s      = d.summary || {};
+    const chips  = document.getElementById('chips');
+    const tbody  = document.getElementById('tbody');
+
+    chips.innerHTML = '';
+    addChip(rows.length + ' pairs',                          'c-blue');
+    if (s.buy_edge_count)  addChip(s.buy_edge_count  + ' BUY',      'c-green');
+    if (s.rev_edge_count)  addChip(s.rev_edge_count  + ' REV',      'c-red');
+    if (s.avg_ev != null)  addChip('avg EV ' + s.avg_ev.toFixed(2) + '%', 'c-yellow');
+
+    tbody.innerHTML = '';
+    rows.slice(0, 60).forEach((row, i) => {
+      const ev  = row.EV != null ? parseFloat(row.EV) : null;
+      const cls = ev == null ? 'ev-zer' : ev < -0.5 ? 'ev-neg' : ev > 0.5 ? 'ev-pos' : 'ev-zer';
+      const evTxt = ev != null ? (ev > 0 ? '+' : '') + ev.toFixed(2) + '%' : '—';
+      const tr  = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + (i+1) + '</td>' +
+        '<td>' + esc(row.BUY||'') + '<br><span class="hand">' + esc(row.BUY_HAND||'') + '</span></td>' +
+        '<td>' + esc(row.REVERSE_BUYER||'') + '<br><span class="hand">' + esc(row.REVERSE_BUYER_HAND||'') + '</span></td>' +
+        '<td>' + pct(row.PRICE) + '</td>' +
+        '<td>' + pct(row.REVERSE_BUY_HIT_PCT) + '</td>' +
+        '<td>' + pct(row.RVS_PRICE) + '</td>' +
+        '<td>' + pct(row.HIT_RATE_PCT) + '</td>' +
+        '<td class="' + cls + '">' + evTxt + '</td>';
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('results').style.display = 'block';
+  }
+
+  function addChip(text, cls) {
+    const el = document.createElement('span');
+    el.className = 'chip ' + cls;
+    el.textContent = text;
+    document.getElementById('chips').appendChild(el);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function pct(v)  { return v != null ? parseFloat(v).toFixed(2) + '%' : '—'; }
+  function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function flash(msg, type) {
+    statusEl.textContent = msg;
+    statusEl.className   = 'status-bar ' + (type || '');
+  }
+
+  async function copyText() {
+    if (!ta.value.trim()) { flash('Nothing to copy.'); return; }
+    await navigator.clipboard.writeText(ta.value);
+    flash('Copied to clipboard.');
+  }
+
+  function clearAll() {
+    ta.value = '';
+    btnEngine.disabled = true;
+    document.getElementById('results').style.display = 'none';
+    flash('Cleared.');
+  }
+
+  async function saveHand() {
+    const text = ta.value.trim();
+    if (!text) { flash('Nothing to save.'); return; }
+    try {
+      const r = await fetch('/collector/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const d = await r.json();
+      if (r.ok) flash('Saved: ' + d.file.split('/').pop());
+      else      flash('Save error: ' + (d.error || ''), 'err');
+    } catch(e) { flash('Save failed: ' + e.message, 'err'); }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  fetch('/collector/meta')
+    .then(r => r.json())
+    .then(d => { document.getElementById('save-path').textContent = d.save_dir; })
+    .catch(() => {});
+</script>
+</body>
+</html>

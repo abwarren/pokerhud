@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLM // Basketball League Manager</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128;
+      --border: #30363d; --text: #e0e0e0; --muted: #8b949e;
+      --green: #3fb950; --red: #f85149; --blue: #58a6ff;
+      --yellow: #d29922; --purple: #bc8cff; --cyan: #39d2c0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+      background: var(--bg); color: var(--text);
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo { color: var(--cyan); font-size: 1.1em; font-weight: 700; letter-spacing: 1px; }
+    .record {
+      font-size: 1.2em; font-weight: 700;
+    }
+    .record .w { color: var(--green); }
+    .record .l { color: var(--red); }
+    .record .pct { color: var(--yellow); margin-left: 8px; }
+    .record .pending { color: var(--purple); margin-left: 8px; }
+    .header-right { display: flex; gap: 8px; }
+    .btn {
+      padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px;
+      background: var(--bg3); color: var(--text); cursor: pointer;
+      font-family: inherit; font-size: 0.8em; font-weight: 600;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: #1a6b3c; border-color: var(--green); color: var(--green); }
+    .btn-primary:hover { background: #1a8b4c; }
+    .btn-blue { background: #1a3a6b; border-color: var(--blue); color: var(--blue); }
+    .btn-blue:hover { background: #1a4a8b; }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      padding: 6px 24px; display: flex; gap: 24px; font-size: 0.75em;
+      color: var(--muted); flex-shrink: 0;
+    }
+    .stat { display: flex; gap: 4px; }
+    .stat-label { color: var(--muted); }
+    .stat-val { color: var(--text); font-weight: 700; }
+    .stat-val.pos { color: var(--green); }
+    .stat-val.neg { color: var(--red); }
+
+    /* ── Tabs ── */
+    .tabs {
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; gap: 0; flex-shrink: 0;
+    }
+    .tab {
+      padding: 8px 16px; cursor: pointer; color: var(--muted);
+      border-bottom: 2px solid transparent; font-size: 0.8em; font-weight: 600;
+      transition: all 0.15s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--cyan); border-color: var(--cyan); }
+
+    /* ── Main Content ── */
+    .main { flex: 1; overflow-y: auto; padding: 0; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 0.78em;
+    }
+    th {
+      background: var(--bg2); color: var(--muted); font-weight: 700;
+      text-align: left; padding: 8px 12px; position: sticky; top: 0;
+      border-bottom: 1px solid var(--border); text-transform: uppercase;
+      font-size: 0.85em; letter-spacing: 0.5px; z-index: 10;
+    }
+    td {
+      padding: 6px 12px; border-bottom: 1px solid rgba(48,54,61,0.5);
+      white-space: nowrap;
+    }
+    tr:hover { background: rgba(56,139,253,0.05); }
+    .matchup { color: var(--text); font-weight: 600; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+    .q { color: var(--cyan); font-weight: 700; }
+    .mkt-line { color: var(--yellow); font-weight: 700; }
+    .final { color: var(--text); font-weight: 700; }
+    .final-detail { color: var(--muted); font-size: 0.85em; }
+    .fair-line { color: var(--purple); font-weight: 700; }
+    .gap { color: var(--green); font-weight: 700; }
+    .z-score { color: var(--blue); font-weight: 700; }
+    .kelly { color: var(--muted); }
+    .accuracy { color: var(--green); font-weight: 700; }
+    .result-win { color: var(--green); font-weight: 800; }
+    .result-loss { color: var(--red); font-weight: 800; }
+    .result-pending { color: var(--purple); font-weight: 700; }
+    .result-push { color: var(--yellow); font-weight: 700; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 1000; justify-content: center; align-items: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 24px; width: 520px; max-width: 95vw; max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h2 { color: var(--cyan); font-size: 1em; margin-bottom: 16px; }
+    .form-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 2px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { color: var(--muted); font-size: 0.7em; font-weight: 700; text-transform: uppercase; }
+    .form-group input, .form-group select, .form-group textarea {
+      padding: 6px 8px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); font-family: inherit; font-size: 0.85em;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none; border-color: var(--cyan);
+    }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+    /* ── Games Tab ── */
+    .games-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px; padding: 16px 24px;
+    }
+    .game-card {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .game-card:hover { border-color: var(--cyan); }
+    .game-card .teams { font-weight: 700; font-size: 0.85em; margin-bottom: 4px; }
+    .game-card .score { font-size: 1.1em; font-weight: 800; color: var(--yellow); }
+    .game-card .meta { color: var(--muted); font-size: 0.7em; margin-top: 4px; }
+    .game-card .status-final { color: var(--green); }
+    .game-card .status-live { color: var(--red); }
+    .game-card .status-scheduled { color: var(--muted); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; background: var(--bg2);
+      border: 1px solid var(--green); border-radius: 6px; padding: 10px 16px;
+      color: var(--green); font-size: 0.8em; font-weight: 600; z-index: 2000;
+      animation: fadeInUp 0.3s ease-out;
+    }
+    .toast.error { border-color: var(--red); color: var(--red); }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <span class="logo">BLM // BASKETBALL LEAGUE MANAGER</span>
+      <div class="record" id="record">--</div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-blue" onclick="openModal('game')">+ GAME</button>
+      <button class="btn btn-primary" onclick="openModal('bet')">+ BET</button>
+      <button class="btn" onclick="settleAll()">SETTLE</button>
+      <button class="btn" onclick="loadAll()">REFRESH</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="history" onclick="switchTab('history')">HISTORY</div>
+    <div class="tab" data-tab="games" onclick="switchTab('games')">GAMES</div>
+  </div>
+
+  <!-- Main -->
+  <div class="main" id="main-content">
+    <!-- History Tab -->
+    <div id="tab-history" class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>MATCHUP</th>
+            <th>Q</th>
+            <th>MKT LINE</th>
+            <th>FINAL</th>
+            <th>FAIR LINE</th>
+            <th>GAP</th>
+            <th>Z-SCORE</th>
+            <th>KELLY%</th>
+            <th>ACCURACY</th>
+            <th>RESULT</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Games Tab -->
+    <div id="tab-games" class="games-grid" style="display:none"></div>
+  </div>
+
+  <!-- Add Game Modal -->
+  <div class="modal-overlay" id="modal-game">
+    <div class="modal">
+      <h2>ADD GAME</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Game ID</label>
+          <input type="text" id="g-id" placeholder="29585435">
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="g-date">
+        </div>
+        <div class="form-group">
+          <label>Home Team</label>
+          <input type="text" id="g-home" placeholder="Denver Nuggets Cyber">
+        </div>
+        <div class="form-group">
+          <label>Away Team</label>
+          <input type="text" id="g-away" placeholder="Houston Rockets Cyber">
+        </div>
+        <div class="form-group">
+          <label>Home Score</label>
+          <input type="number" id="g-home-score" placeholder="">
+        </div>
+        <div class="form-group">
+          <label>Away Score</label>
+          <input type="number" id="g-away-score" placeholder="">
+        </div>
+        <div class="form-group">
+          <label>Q1 (H-A)</label>
+          <input type="text" id="g-q1" placeholder="28-25">
+        </div>
+        <div class="form-group">
+          <label>Q2 (H-A)</label>
+          <input type="text" id="g-q2" placeholder="30-27">
+        </div>
+        <div class="form-group">
+          <label>Q3 (H-A)</label>
+          <input type="text" id="g-q3" placeholder="26-22">
+        </div>
+        <div class="form-group">
+          <label>Q4 (H-A)</label>
+          <input type="text" id="g-q4" placeholder="25-20">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('game')">CANCEL</button>
+        <button class="btn btn-primary" onclick="submitGame()">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Bet Modal -->
+  <div class="modal-overlay" id="modal-bet">
+    <div class="modal">
+      <h2>ADD BET</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Game ID</label>
+          <input type="text" id="b-game-id" placeholder="29585435">
+        </div>
+        <div class="form-group">
+          <label>Quarter</label>
+          <select id="b-quarter">
+            <option value="FG">Full Game</option>
+            <option value="Q1">Q1</option>
+            <option value="Q2">Q2</option>
+            <option value="Q3">Q3</option>
+            <option value="Q4">Q4</option>
+            <option value="H1">1st Half</option>
+            <option value="H2">2nd Half</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Market Line</label>
+          <input type="number" step="0.5" id="b-mkt-line" placeholder="232.5">
+        </div>
+        <div class="form-group">
+          <label>Fair Line</label>
+          <input type="number" step="0.1" id="b-fair-line" placeholder="210.0">
+        </div>
+        <div class="form-group">
+          <label>Direction</label>
+          <select id="b-direction">
+            <option value="under">UNDER</option>
+            <option value="over">OVER</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Stake (ZAR)</label>
+          <input type="number" step="1" id="b-stake" placeholder="10">
+        </div>
+        <div class="form-group">
+          <label>Odds</label>
+          <input type="number" step="0.01" id="b-odds" placeholder="1.90">
+        </div>
+        <div class="form-group">
+          <label>Z-Score</label>
+          <input type="number" step="0.01" id="b-z-score" placeholder="3.90">
+        </div>
+        <div class="form-group">
+          <label>Kelly %</label>
+          <input type="number" step="0.1" id="b-kelly" placeholder="">
+        </div>
+        <div class="form-group">
+          <label>Accuracy %</label>
+          <input type="number" step="1" id="b-accuracy" placeholder="">
+        </div>
+        <div class="form-group">
+          <label>Final Total</label>
+          <input type="number" step="1" id="b-final" placeholder="">
+        </div>
+        <div class="form-group">
+          <label>Result</label>
+          <select id="b-result">
+            <option value="PENDING">PENDING</option>
+            <option value="WIN">WIN</option>
+            <option value="LOSS">LOSS</option>
+            <option value="PUSH">PUSH</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="b-notes" rows="2" placeholder=""></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('bet')">CANCEL</button>
+        <button class="btn btn-primary" onclick="submitBet()">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const API = '/api/blm';
+
+  // ── API helpers ────────────────────────────────────────────
+  async function api(path, method='GET', body=null) {
+    const opts = { method, headers: {'Content-Type': 'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(API + path, opts);
+    return r.json();
+  }
+
+  function toast(msg, isError=false) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (isError ? ' error' : '');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  // ── Load all data ──────────────────────────────────────────
+  async function loadAll() {
+    await Promise.all([loadStats(), loadHistory(), loadGames()]);
+  }
+
+  async function loadStats() {
+    const d = await api('/stats');
+    const w = d.wins || 0, l = d.losses || 0, p = d.pending || 0;
+    const pct = d.win_pct || 0;
+    document.getElementById('record').innerHTML =
+      `<span class="w">${w}W</span> / <span class="l">${l}L</span>` +
+      `<span class="pct">${pct}%</span>` +
+      (p > 0 ? `<span class="pending">${p}</span>` : '');
+
+    const bar = document.getElementById('stats-bar');
+    const roi = d.roi || 0;
+    const roiCls = roi >= 0 ? 'pos' : 'neg';
+    bar.innerHTML = `
+      <div class="stat"><span class="stat-label">TOTAL:</span><span class="stat-val">${d.total || 0}</span></div>
+      <div class="stat"><span class="stat-label">PROFIT:</span><span class="stat-val ${roiCls}">R${(d.total_profit || 0).toFixed(2)}</span></div>
+      <div class="stat"><span class="stat-label">ROI:</span><span class="stat-val ${roiCls}">${roi}%</span></div>
+      <div class="stat"><span class="stat-label">STAKED:</span><span class="stat-val">R${(d.total_staked || 0).toFixed(2)}</span></div>
+      <div class="stat"><span class="stat-label">AVG GAP:</span><span class="stat-val">${d.avg_gap ? '+' + d.avg_gap.toFixed(1) : '--'}</span></div>
+      <div class="stat"><span class="stat-label">AVG Z:</span><span class="stat-val">${d.avg_z_score ? d.avg_z_score.toFixed(2) : '--'}</span></div>
+    `;
+  }
+
+  async function loadHistory() {
+    const d = await api('/bets?limit=200');
+    const tbody = document.getElementById('history-body');
+    tbody.innerHTML = '';
+
+    (d.bets || []).forEach((b, i) => {
+      const matchup = (b.home_team && b.away_team)
+        ? `${b.home_team} v ${b.away_team}` : b.game_id;
+      const finalStr = b.final_total != null ? b.final_total : '--';
+      const finalDetail = (b.home_score != null && b.away_score != null)
+        ? `(${b.home_score}-${b.away_score})` : '';
+      const gap = b.gap != null ? `+${b.gap.toFixed(1)}` : '--';
+      const zScore = b.z_score != null ? b.z_score.toFixed(2) : '--';
+      const kelly = b.kelly_pct != null ? b.kelly_pct.toFixed(1) + '%' : '--';
+      const accuracy = b.accuracy != null ? b.accuracy + '%' : '--';
+      const resultCls = b.result === 'WIN' ? 'result-win' :
+                        b.result === 'LOSS' ? 'result-loss' :
+                        b.result === 'PUSH' ? 'result-push' : 'result-pending';
+
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td style="color:var(--muted)">${String(i+1).padStart(2,'0')}</td>
+        <td class="matchup">${matchup}</td>
+        <td class="q">${b.quarter || 'FG'}</td>
+        <td class="mkt-line">${b.market_line}</td>
+        <td class="final">${finalStr} <span class="final-detail">${finalDetail}</span></td>
+        <td class="fair-line">${b.fair_line != null ? b.fair_line.toFixed(1) : '--'}</td>
+        <td class="gap">${gap}</td>
+        <td class="z-score">${zScore}</td>
+        <td class="kelly">${kelly}</td>
+        <td class="accuracy">${accuracy}</td>
+        <td class="${resultCls}">${b.result}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  async function loadGames() {
+    const d = await api('/games?limit=100');
+    const grid = document.getElementById('tab-games');
+    grid.innerHTML = '';
+
+    (d.games || []).forEach(g => {
+      const total = g.total_score != null ? g.total_score : '--';
+      const score = (g.home_score != null) ? `${g.home_score} - ${g.away_score}` : 'No score';
+      const statusCls = g.status === 'final' ? 'status-final' :
+                        g.status === 'live' ? 'status-live' : 'status-scheduled';
+      const card = document.createElement('div');
+      card.className = 'game-card';
+      card.innerHTML = `
+        <div class="teams">${g.home_team} v ${g.away_team}</div>
+        <div class="score">${score} (${total})</div>
+        <div class="meta">
+          <span class="${statusCls}">${g.status.toUpperCase()}</span>
+          | ID: ${g.game_id}
+          ${g.game_date ? '| ' + g.game_date : ''}
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    document.getElementById('tab-history').style.display = tab === 'history' ? '' : 'none';
+    document.getElementById('tab-games').style.display = tab === 'games' ? '' : 'none';
+  }
+
+  // ── Modals ─────────────────────────────────────────────────
+  function openModal(type) {
+    document.getElementById('modal-' + type).classList.add('show');
+  }
+  function closeModal(type) {
+    document.getElementById('modal-' + type).classList.remove('show');
+  }
+
+  // Close modal on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target === el) el.classList.remove('show');
+    });
+  });
+
+  // ── Submit Game ────────────────────────────────────────────
+  async function submitGame() {
+    const parseQ = (val) => {
+      if (!val) return [null, null];
+      const parts = val.split('-').map(Number);
+      return parts.length === 2 ? parts : [null, null];
+    };
+    const [q1h, q1a] = parseQ(document.getElementById('g-q1').value);
+    const [q2h, q2a] = parseQ(document.getElementById('g-q2').value);
+    const [q3h, q3a] = parseQ(document.getElementById('g-q3').value);
+    const [q4h, q4a] = parseQ(document.getElementById('g-q4').value);
+
+    const game = {
+      game_id: document.getElementById('g-id').value.trim(),
+      home_team: document.getElementById('g-home').value.trim(),
+      away_team: document.getElementById('g-away').value.trim(),
+      home_score: parseInt(document.getElementById('g-home-score').value) || null,
+      away_score: parseInt(document.getElementById('g-away-score').value) || null,
+      game_date: document.getElementById('g-date').value || null,
+      q1_home: q1h, q1_away: q1a, q2_home: q2h, q2_away: q2a,
+      q3_home: q3h, q3_away: q3a, q4_home: q4h, q4_away: q4a,
+    };
+
+    if (!game.game_id || !game.home_team || !game.away_team) {
+      toast('Game ID, Home, and Away required', true);
+      return;
+    }
+
+    const r = await api('/games', 'POST', game);
+    if (r.status === 'ok') {
+      toast('Game saved: ' + game.game_id);
+      closeModal('game');
+      loadAll();
+    } else {
+      toast(r.message || 'Error', true);
+    }
+  }
+
+  // ── Submit Bet ─────────────────────────────────────────────
+  async function submitBet() {
+    const bet = {
+      game_id: document.getElementById('b-game-id').value.trim(),
+      quarter: document.getElementById('b-quarter').value,
+      market_line: parseFloat(document.getElementById('b-mkt-line').value),
+      fair_line: parseFloat(document.getElementById('b-fair-line').value) || null,
+      direction: document.getElementById('b-direction').value,
+      stake: parseFloat(document.getElementById('b-stake').value) || 0,
+      odds: parseFloat(document.getElementById('b-odds').value) || null,
+      z_score: parseFloat(document.getElementById('b-z-score').value) || null,
+      kelly_pct: parseFloat(document.getElementById('b-kelly').value) || null,
+      accuracy: parseFloat(document.getElementById('b-accuracy').value) || null,
+      final_total: parseFloat(document.getElementById('b-final').value) || null,
+      result: document.getElementById('b-result').value,
+      notes: document.getElementById('b-notes').value || null,
+    };
+
+    if (!bet.game_id || isNaN(bet.market_line)) {
+      toast('Game ID and Market Line required', true);
+      return;
+    }
+
+    const r = await api('/bets', 'POST', bet);
+    if (r.status === 'ok') {
+      toast('Bet saved #' + r.bet_id);
+      closeModal('bet');
+      loadAll();
+    } else {
+      toast(r.message || 'Error', true);
+    }
+  }
+
+  // ── Auto-settle ────────────────────────────────────────────
+  async function settleAll() {
+    const r = await api('/settle', 'POST');
+    toast('Settled ' + (r.settled || 0) + ' bets');
+    loadAll();
+  }
+
+  // ── Init ───────────────────────────────────────────────────
+  (async function() {
+    await api('/init', 'POST');
+    loadAll();
+  })();
+</script>
+</body>
+</html>

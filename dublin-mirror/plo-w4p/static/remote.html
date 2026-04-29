@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W4P Remote Control</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(160deg, #070f1e 0%, #0c1a30 40%, #0a2018 100%);
+    color: #c8d0de;
+    min-height: 100vh;
+    padding-bottom: 52px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 11px 20px;
+    background: linear-gradient(135deg, #0b1830, #102540);
+    border-bottom: 1px solid #1a3555;
+  }
+  header h1 { font-size: 17px; letter-spacing: 2.5px; color: #c8a96e; font-weight: 700; }
+  .hdr-right { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #7a8a9e; }
+  .conn-dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    display: inline-block; vertical-align: middle;
+    background: #555;
+  }
+  .conn-dot.ok  { background: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+  .conn-dot.err { background: #e74c3c; box-shadow: 0 0 6px #e74c3c; }
+
+  /* ── Table bar ── */
+  .table-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 9px 20px;
+    background: #0d1e34;
+    border-bottom: 1px solid #1a3555;
+    font-size: 14px;
+  }
+  .street-badge {
+    padding: 3px 12px; border-radius: 4px;
+    font-weight: 700; font-size: 12px; letter-spacing: 1px;
+    color: #c0ffd8; background: #1a5a3a;
+  }
+  .street-badge.PREFLOP { background: #3a3a50; color: #b0b0c8; }
+  .street-badge.FLOP    { background: #1a5a3a; }
+  .street-badge.TURN    { background: #6a4a10; color: #ffd080; }
+  .street-badge.RIVER   { background: #5a1a1a; color: #ffa0a0; }
+  .pot-display { color: #c8a96e; font-weight: 600; }
+
+  /* ── Board ── */
+  .board-row {
+    display: flex; justify-content: center; gap: 8px;
+    padding: 14px 20px; background: #091420;
+  }
+  .bcard {
+    width: 50px; height: 70px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700;
+    background: #15263e; border: 1px solid #25456a;
+  }
+  .bcard.dealt { background: #f0ece4; border-color: #b8a882; }
+  .bcard.red { color: #d42020; }
+  .bcard.blk { color: #1a1a1a; }
+
+  /* ── Seat grid ── */
+  .seats-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; padding: 14px 20px;
+  }
+  @media (max-width: 900px) { .seats-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .seats-grid { grid-template-columns: 1fr; } }
+
+  /* ── Seat card ── */
+  .seat {
+    background: #101d32; border: 2px solid #1c3050;
+    border-radius: 8px; overflow: hidden;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .seat.active {
+    border-color: #c8a96e;
+    box-shadow: 0 0 12px rgba(200, 169, 110, 0.35);
+  }
+  .seat-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; font-size: 13px;
+  }
+  .seat-hdr .s-left { display: flex; align-items: center; gap: 6px; }
+  .seat-hdr .sno { color: #5a6a80; font-size: 11px; }
+  .seat-hdr .sname { font-weight: 600; color: #d0d8e8; }
+  .seat-hdr .dealer { background: #c8a96e; color: #0a1628; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+  .seat-hdr .sstack { color: #6bb86b; font-weight: 600; }
+
+  .seat-body {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.12s ease;
+  }
+  .seat.active .seat-body { max-height: 600px; }
+  .seat-body-inner { padding: 6px 12px 12px; }
+
+  /* ── Hole cards ── */
+  .hole-cards { display: flex; gap: 4px; margin-bottom: 8px; }
+  .hcard {
+    width: 34px; height: 48px; border-radius: 4px;
+    background: #f0ece4; border: 1px solid #b8a882;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  .hcard.red { color: #d42020; }
+  .hcard.blk { color: #1a1a1a; }
+
+  /* ── Bet info ── */
+  .bet-info {
+    display: flex; flex-wrap: wrap; gap: 4px 14px;
+    font-size: 12px; color: #7a8a9e; margin-bottom: 8px;
+  }
+  .bet-info .v { color: #c8a96e; font-weight: 600; }
+
+  /* ── Buttons ── */
+  .act-section { display: flex; flex-direction: column; gap: 6px; }
+  .act-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .btn {
+    padding: 7px 13px; border: none; border-radius: 5px;
+    font-size: 12px; font-weight: 700; cursor: pointer; color: #fff;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:active { filter: brightness(0.88); }
+  .btn-fold   { background: #b82030; }
+  .btn-check  { background: #1d8a38; }
+  .btn-call   { background: #1e5eb8; }
+  .btn-allin  { background: linear-gradient(135deg, #7a1020, #500a18); box-shadow: 0 0 8px rgba(160,20,40,0.45); }
+  .btn-preset { background: #7a5a18; }
+  .btn-raise  { background: #28784a; }
+  .btn-misc   { background: #38485e; }
+
+  .slider-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .slider-row input[type=range] {
+    flex: 1; min-width: 80px; accent-color: #c8a96e; height: 6px;
+  }
+  .slider-row input[type=number] {
+    width: 70px; background: #0a1628; border: 1px solid #28456a;
+    border-radius: 4px; color: #d0d8e8; padding: 5px 6px;
+    font-size: 12px; text-align: right;
+  }
+  .slider-row input[type=number]:focus { outline: 1px solid #c8a96e; }
+
+  .preact-row {
+    display: flex; gap: 14px; padding: 4px 12px 6px;
+    font-size: 11px; color: #7a8a9e;
+    border-top: 1px solid #1a2a40;
+  }
+  .preact-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .preact-row input[type=checkbox] { accent-color: #c8a96e; }
+
+  /* ── Command log ── */
+  #cmd-log {
+    margin: 12px 20px 20px; background: #080e1c;
+    border: 1px solid #182a44; border-radius: 6px;
+    max-height: 140px; overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11px; padding: 8px 10px;
+  }
+  .log-entry { padding: 2px 0; border-bottom: 1px solid #101c2e; }
+  .log-ts  { color: #4a5a70; }
+  .log-ok  { color: #2ecc71; }
+  .log-err { color: #e74c3c; }
+
+  .empty-state {
+    text-align: center; padding: 50px 20px;
+    color: #3a4a60; font-size: 15px;
+  }
+
+  /* ── Bottom bar (emergency fallback) ── */
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(180deg, #0d1e34 0%, #091420 100%);
+    border-top: 1px solid #1a3555;
+    padding: 7px 16px;
+    display: flex; align-items: center; gap: 10px;
+    z-index: 100;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  .bottom-bar.hidden {
+    transform: translateY(100%); opacity: 0; pointer-events: none;
+  }
+  .bottom-bar .bb-who {
+    font-size: 10px; color: #5a6a80; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
+  }
+  .bottom-bar .bb-actions { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+  .bottom-bar .btn { padding: 5px 10px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>W4P REMOTE CONTROL</h1>
+  <div class="hdr-right">
+    <span id="conn-label">--</span>
+    <span id="conn-dot" class="conn-dot"></span>
+  </div>
+</header>
+<div id="table-bar" class="table-bar" style="display:none">
+  <span id="street-badge" class="street-badge">--</span>
+  <span id="pot-display" class="pot-display">POT R0.00</span>
+</div>
+<div id="board-row" class="board-row" style="display:none"></div>
+<div id="seats-area"></div>
+<div id="cmd-log"></div>
+<div id="bottom-bar" class="bottom-bar hidden">
+  <span class="bb-who" id="bb-who"></span>
+  <div class="bb-actions" id="bb-actions"></div>
+</div>
+
+<script>
+'use strict';
+
+const API = '/api';
+const POLL_MS = 300;
+const SUITS = {
+  h: { sym: '\u2665', cls: 'red' },
+  d: { sym: '\u2666', cls: 'red' },
+  s: { sym: '\u2660', cls: 'blk' },
+  c: { sym: '\u2663', cls: 'blk' }
+};
+
+let lastTable = null;
+let preActionState = {}; // seatNo -> 'check_fold' | 'check_call' | null
+let cashoutState = {};   // seatNo -> true | false
+let lastBoardKey = null; // track board to detect new hand
+
+// ── Diff rendering state ────────────────────
+const renderedSeats = new Map(); // seatNo -> { hash, el }
+let gridEl = null;
+let lastBBHash = null;
+let lastBoardHash = null;
+
+// ── Utilities ────────────────────────────────
+
+function fmtCard(str) {
+  if (!str || str.length < 2) return { text: '?', cls: 'blk' };
+  const rank = str.slice(0, -1).toUpperCase();
+  const s = SUITS[str.slice(-1).toLowerCase()];
+  if (!s) return { text: str, cls: 'blk' };
+  return { text: rank + s.sym, cls: s.cls };
+}
+
+function seatDisplay(seat) {
+  return seat.seat_index != null ? seat.seat_index : seat.seat_no;
+}
+
+function nowTs() {
+  return new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+
+function esc(s) {
+  const d = document.createElement('span');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Command log ──────────────────────────────
+
+function logCmd(seatNo, cmd, amount, ok, detail) {
+  const log = document.getElementById('cmd-log');
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  const amtStr = amount != null ? ' R' + amount : '';
+  div.innerHTML =
+    '<span class="log-ts">[' + nowTs() + ']</span> Seat ' + seatNo +
+    ' <b>' + esc(cmd) + '</b>' + amtStr +
+    ' <span class="' + (ok ? 'log-ok' : 'log-err') + '">' + (ok ? 'OK' : 'FAIL') + '</span>' +
+    (detail ? ' ' + esc(detail) : '');
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  while (log.children.length > 60) log.removeChild(log.firstChild);
+}
+
+// ── API: Fetch table ─────────────────────────
+
+async function fetchTable() {
+  const dot = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  try {
+    const r = await fetch(API + '/table/latest');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (j.ok && j.table) {
+      dot.className = 'conn-dot ok';
+      label.textContent = 'v' + (j.table.state_version || '?');
+      lastTable = j.table;
+    } else {
+      dot.className = 'conn-dot';
+      label.textContent = 'no table';
+      lastTable = null;
+    }
+  } catch (e) {
+    dot.className = 'conn-dot err';
+    label.textContent = 'error';
+    lastTable = null;
+  }
+  render();
+}
+
+// ── API: Send command ────────────────────────
+
+async function sendCmd(seatNo, cmdType, amount) {
+  const tableId = lastTable ? lastTable.table_id : null;
+  const clickTs = Date.now();
+  const body = { table_id: tableId, seat_no: seatNo, command_type: cmdType, remote_click_ts: clickTs };
+  if (amount != null) body.amount = amount;
+  try {
+    const r = await fetch(API + '/commands/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    logCmd(seatNo, cmdType, amount, r.ok, r.ok ? '' : 'HTTP ' + r.status);
+  } catch (e) {
+    logCmd(seatNo, cmdType, amount, false, e.message);
+  }
+}
+
+// ── Render: table bar ────────────────────────
+
+function renderBar() {
+  const bar = document.getElementById('table-bar');
+  if (!lastTable) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const badge = document.getElementById('street-badge');
+  const street = lastTable.street || '--';
+  badge.textContent = street;
+  badge.className = 'street-badge ' + street;
+  const pot = lastTable.pot_zar != null ? lastTable.pot_zar.toFixed(2) : '0.00';
+  document.getElementById('pot-display').textContent = 'POT R' + pot;
+}
+
+// ── Render: board cards (diff: skip if unchanged) ──
+
+function renderBoard() {
+  const row = document.getElementById('board-row');
+  if (!lastTable) { row.style.display = 'none'; lastBoardHash = null; return; }
+  const b = lastTable.board || {};
+  const bh = (b.flop||[]).join(',') + '|' + (b.turn||'') + '|' + (b.river||'');
+  if (bh === lastBoardHash) return;
+  lastBoardHash = bh;
+
+  row.style.display = 'flex';
+  row.innerHTML = '';
+  const cards = [];
+  if (Array.isArray(b.flop)) b.flop.forEach(c => cards.push(c));
+  while (cards.length < 3) cards.push(null);
+  cards.push(b.turn || null);
+  cards.push(b.river || null);
+
+  cards.forEach(c => {
+    const el = document.createElement('div');
+    if (c) {
+      const f = fmtCard(c);
+      el.className = 'bcard dealt ' + f.cls;
+      el.textContent = f.text;
+    } else {
+      el.className = 'bcard';
+    }
+    row.appendChild(el);
+  });
+}
+
+// ── Seat hash (for diff rendering) ──────────
+
+function seatHash(seat) {
+  const sn = seat.seat_no != null ? seat.seat_no : seat.seat_index;
+  const acts = (seat.available_actions || []).join(',');
+  const hc = (seat.hole_cards || []).join(',');
+  const ba = seat.buttons ? (seat.buttons.actions||[]).map(a => a.action+':'+(a.amount||'')).join(',') : '';
+  const sl = seat.buttons && seat.buttons.slider ? seat.buttons.slider.current+':'+seat.buttons.slider.min+':'+seat.buttons.slider.max : '';
+  return seat.name + '|' + seat.stack_zar + '|' + acts + '|' + hc + '|' +
+    seat.bet + '|' + ba + '|' + sl + '|' + seat.is_dealer + '|' +
+    (preActionState[sn]||'') + '|' + (cashoutState[sn]||false);
+}
+
+// ── Build a single seat card DOM element ────
+
+function buildSeatCard(seat) {
+  const btns = seat.buttons || null;
+  const isActive = Array.isArray(seat.available_actions) && seat.available_actions.length > 0;
+  const seatNo = seat.seat_no != null ? seat.seat_no : seat.seat_index;
+
+  const card = document.createElement('div');
+  card.className = 'seat' + (isActive ? ' active' : '');
+
+  // ─ Header ─
+  const hdr = document.createElement('div');
+  hdr.className = 'seat-hdr';
+  const left = document.createElement('span');
+  left.className = 's-left';
+  left.innerHTML =
+    '<span class="sno">#' + seatDisplay(seat) + '</span>' +
+    '<span class="sname">' + esc(seat.name || 'Empty') + '</span>' +
+    (seat.is_dealer ? '<span class="dealer">D</span>' : '');
+  hdr.appendChild(left);
+  const stackEl = document.createElement('span');
+  stackEl.className = 'sstack';
+  stackEl.textContent = seat.stack_zar != null ? 'R' + seat.stack_zar.toFixed(2) : '';
+  hdr.appendChild(stackEl);
+  card.appendChild(hdr);
+
+  // ─ Pre-action checkboxes (ALWAYS visible) ─
+  const paRow = document.createElement('div');
+  paRow.className = 'preact-row';
+  const curPa = preActionState[seatNo] || null;
+
+  const cfLbl = document.createElement('label');
+  const cfBox = document.createElement('input');
+  cfBox.type = 'checkbox';
+  cfBox.checked = curPa === 'check_fold';
+  cfBox.addEventListener('change', () => {
+    if (cfBox.checked) { preActionState[seatNo] = 'check_fold'; sendCmd(seatNo, 'check_fold'); }
+    else { preActionState[seatNo] = null; sendCmd(seatNo, 'clear'); }
+    render();
+  });
+  cfLbl.appendChild(cfBox); cfLbl.append(' Check/Fold');
+  paRow.appendChild(cfLbl);
+
+  const ccLbl = document.createElement('label');
+  const ccBox = document.createElement('input');
+  ccBox.type = 'checkbox';
+  ccBox.checked = curPa === 'check_call';
+  ccBox.addEventListener('change', () => {
+    if (ccBox.checked) { preActionState[seatNo] = 'check_call'; sendCmd(seatNo, 'check_call'); }
+    else { preActionState[seatNo] = null; sendCmd(seatNo, 'clear'); }
+    render();
+  });
+  ccLbl.appendChild(ccBox); ccLbl.append(' Check/Call');
+  paRow.appendChild(ccLbl);
+
+  const coLbl = document.createElement('label');
+  const coBox = document.createElement('input');
+  coBox.type = 'checkbox';
+  coBox.checked = !!cashoutState[seatNo];
+  coBox.addEventListener('change', () => {
+    if (coBox.checked) { cashoutState[seatNo] = true; sendCmd(seatNo, 'cashout_pre'); }
+    else { cashoutState[seatNo] = false; sendCmd(seatNo, 'clear_cashout'); }
+    render();
+  });
+  coLbl.appendChild(coBox); coLbl.append(' Cashout');
+  paRow.appendChild(coLbl);
+  card.appendChild(paRow);
+
+  // ─ Body (expand for active only) ─
+  const body = document.createElement('div');
+  body.className = 'seat-body';
+
+  if (isActive) {
+    const inner = document.createElement('div');
+    inner.className = 'seat-body-inner';
+
+    if (Array.isArray(seat.hole_cards) && seat.hole_cards.length > 0) {
+      const hcDiv = document.createElement('div');
+      hcDiv.className = 'hole-cards';
+      seat.hole_cards.forEach(c => {
+        const f = fmtCard(c);
+        const el = document.createElement('div');
+        el.className = 'hcard ' + f.cls;
+        el.textContent = f.text;
+        hcDiv.appendChild(el);
+      });
+      inner.appendChild(hcDiv);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'bet-info';
+    let infoHtml = '';
+    if (seat.bet) infoHtml += '<span>Bet: <span class="v">R' + seat.bet + '</span></span>';
+    if (btns) {
+      const callAct = (btns.actions || []).find(a => a.action === 'call');
+      if (callAct && callAct.amount != null)
+        infoHtml += '<span>Call: <span class="v">R' + callAct.amount + '</span></span>';
+      if (btns.slider) {
+        infoHtml += '<span>Min raise: <span class="v">R' + btns.slider.min + '</span></span>';
+        infoHtml += '<span>Max raise: <span class="v">R' + btns.slider.max + '</span></span>';
+      }
+    }
+    if (infoHtml) { info.innerHTML = infoHtml; inner.appendChild(info); }
+
+    const acts = seat.available_actions;
+    const section = document.createElement('div');
+    section.className = 'act-section';
+
+    const primary = document.createElement('div');
+    primary.className = 'act-row';
+    if (acts.includes('fold'))
+      primary.appendChild(mkBtn('FOLD', 'btn-fold', () => sendCmd(seatNo, 'fold')));
+    if (acts.includes('check'))
+      primary.appendChild(mkBtn('CHECK', 'btn-check', () => sendCmd(seatNo, 'check')));
+    if (acts.includes('call')) {
+      const ca = btns && btns.actions ? btns.actions.find(a => a.action === 'call') : null;
+      const lbl = ca && ca.amount != null ? 'CALL R' + ca.amount : 'CALL';
+      primary.appendChild(mkBtn(lbl, 'btn-call', () => sendCmd(seatNo, 'call')));
+    }
+    if (acts.includes('allin'))
+      primary.appendChild(mkBtn('ALL-IN', 'btn-allin', () => sendCmd(seatNo, 'allin')));
+    if (primary.children.length) section.appendChild(primary);
+
+    const miscRow = document.createElement('div');
+    miscRow.className = 'act-row';
+    ['cashout', 'show', 'run_it_twice'].forEach(a => {
+      if (acts.includes(a))
+        miscRow.appendChild(mkBtn(a.replace(/_/g, ' ').toUpperCase(), 'btn-misc', () => sendCmd(seatNo, a)));
+    });
+    if (miscRow.children.length) section.appendChild(miscRow);
+
+    const hasRaise = acts.includes('raise');
+    const hasBet = acts.includes('bet');
+    if (hasRaise || hasBet) {
+      const cmdWord = hasBet ? 'bet' : 'raise';
+      const slider = btns && btns.slider ? btns.slider : null;
+      const sMin = slider ? slider.min : 1;
+      const sMax = slider ? slider.max : 9999;
+      const sStep = slider ? (slider.step || 1) : 1;
+      const sCur = slider ? (slider.current || sMin) : sMin;
+
+      const presetRow = document.createElement('div');
+      presetRow.className = 'act-row';
+      presetRow.appendChild(mkBtn('MIN', 'btn-preset', () => sendCmd(seatNo, 'min')));
+      presetRow.appendChild(mkBtn('1/2 POT', 'btn-preset', () => sendCmd(seatNo, 'half')));
+      presetRow.appendChild(mkBtn('POT', 'btn-preset', () => sendCmd(seatNo, 'pot')));
+      presetRow.appendChild(mkBtn('MAX', 'btn-preset', () => sendCmd(seatNo, 'max')));
+      section.appendChild(presetRow);
+
+      const sliderRow = document.createElement('div');
+      sliderRow.className = 'slider-row';
+      const range = document.createElement('input');
+      range.type = 'range'; range.min = sMin; range.max = sMax; range.step = sStep; range.value = sCur;
+      const numIn = document.createElement('input');
+      numIn.type = 'number'; numIn.min = sMin; numIn.max = sMax; numIn.step = sStep; numIn.value = sCur;
+      range.addEventListener('input', () => { numIn.value = range.value; });
+      numIn.addEventListener('input', () => { range.value = numIn.value; });
+      sliderRow.appendChild(range);
+      sliderRow.appendChild(numIn);
+      sliderRow.appendChild(mkBtn(cmdWord.toUpperCase(), 'btn-raise',
+        () => sendCmd(seatNo, cmdWord, Number(numIn.value))));
+      section.appendChild(sliderRow);
+    }
+
+    inner.appendChild(section);
+    body.appendChild(inner);
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+// ── Render: seats (diff-based — only rebuild changed cards) ──
+
+function renderSeats() {
+  const area = document.getElementById('seats-area');
+  if (!lastTable || !Array.isArray(lastTable.seats) || lastTable.seats.length === 0) {
+    if (gridEl) { gridEl = null; renderedSeats.clear(); }
+    area.innerHTML = '<div class="empty-state">Waiting for table data...</div>';
+    return;
+  }
+
+  const heroSeats = lastTable.seats.filter(s => s.is_self_player === true && s.name != null);
+  if (heroSeats.length === 0) {
+    if (gridEl) { gridEl = null; renderedSeats.clear(); }
+    area.innerHTML = '<div class="empty-state">No connected players</div>';
+    return;
+  }
+
+  // Ensure grid exists
+  if (!gridEl || !gridEl.parentElement) {
+    area.innerHTML = '';
+    gridEl = document.createElement('div');
+    gridEl.className = 'seats-grid';
+    area.appendChild(gridEl);
+    renderedSeats.clear();
+  }
+
+  const newSeatNos = new Set();
+  heroSeats.forEach(seat => {
+    const sn = seat.seat_no != null ? seat.seat_no : seat.seat_index;
+    newSeatNos.add(sn);
+    const hash = seatHash(seat);
+    const existing = renderedSeats.get(sn);
+
+    if (existing && existing.hash === hash) return; // unchanged, skip
+
+    const card = buildSeatCard(seat);
+    if (existing && existing.el.parentElement) {
+      gridEl.replaceChild(card, existing.el);
+    } else {
+      gridEl.appendChild(card);
+    }
+    renderedSeats.set(sn, { hash, el: card });
+  });
+
+  // Remove seats no longer present
+  for (const [sn, data] of renderedSeats) {
+    if (!newSeatNos.has(sn)) {
+      if (data.el.parentElement) data.el.parentElement.removeChild(data.el);
+      renderedSeats.delete(sn);
+    }
+  }
+}
+
+function mkBtn(label, cls, onclick) {
+  const b = document.createElement('button');
+  b.className = 'btn ' + cls;
+  b.textContent = label;
+  b.addEventListener('click', onclick);
+  return b;
+}
+
+// ── Render: bottom bar (emergency fallback) ──
+
+function renderBottomBar() {
+  const bar = document.getElementById('bottom-bar');
+  const who = document.getElementById('bb-who');
+  const acts = document.getElementById('bb-actions');
+
+  if (!lastTable || !Array.isArray(lastTable.seats)) {
+    bar.classList.add('hidden'); lastBBHash = null; return;
+  }
+
+  const hero = lastTable.seats.find(s =>
+    s.is_self_player === true && s.name != null &&
+    Array.isArray(s.available_actions) && s.available_actions.length > 0
+  );
+
+  if (!hero) { bar.classList.add('hidden'); lastBBHash = null; return; }
+
+  const sn = hero.seat_no != null ? hero.seat_no : hero.seat_index;
+  const av = hero.available_actions;
+  const btns = hero.buttons || null;
+  const ca = btns && btns.actions ? btns.actions.find(a => a.action === 'call') : null;
+  const bbh = hero.name + '|' + av.join(',') + '|' + (ca ? ca.amount : '') + '|' + sn;
+  if (bbh === lastBBHash) return;
+  lastBBHash = bbh;
+
+  bar.classList.remove('hidden');
+  who.textContent = hero.name;
+  acts.innerHTML = '';
+
+  if (av.includes('fold'))
+    acts.appendChild(mkBtn('FOLD', 'btn-fold', () => sendCmd(sn, 'fold')));
+  if (av.includes('check'))
+    acts.appendChild(mkBtn('CHECK', 'btn-check', () => sendCmd(sn, 'check')));
+  if (av.includes('call')) {
+    const lbl = ca && ca.amount != null ? 'CALL R' + ca.amount : 'CALL';
+    acts.appendChild(mkBtn(lbl, 'btn-call', () => sendCmd(sn, 'call')));
+  }
+  if (av.includes('raise') || av.includes('bet')) {
+    acts.appendChild(mkBtn('MIN', 'btn-preset', () => sendCmd(sn, 'min')));
+    acts.appendChild(mkBtn('POT', 'btn-preset', () => sendCmd(sn, 'pot')));
+    acts.appendChild(mkBtn('MAX', 'btn-preset', () => sendCmd(sn, 'max')));
+  }
+  if (av.includes('allin'))
+    acts.appendChild(mkBtn('ALL-IN', 'btn-allin', () => sendCmd(sn, 'allin')));
+}
+
+// ── New-hand detection: reset pre-actions ───
+
+function checkNewHand() {
+  if (!lastTable || !lastTable.board) return;
+  const b = lastTable.board;
+  const flopStr = Array.isArray(b.flop) ? b.flop.join(',') : '';
+  const boardKey = lastTable.street + ':' + flopStr;
+  if (lastBoardKey !== null && lastBoardKey !== boardKey) {
+    // Board changed — if street went back to PREFLOP or flop cards changed, it's a new hand
+    const wasPreflop = lastBoardKey.startsWith('PREFLOP:');
+    const isPreflop = boardKey.startsWith('PREFLOP:');
+    if (isPreflop || flopStr !== lastBoardKey.split(':').slice(1).join(':')) {
+      preActionState = {};
+      cashoutState = {};
+    }
+  }
+  lastBoardKey = boardKey;
+}
+
+// ── Main render ──────────────────────────────
+
+function render() {
+  checkNewHand();
+  renderBar();
+  renderBoard();
+  renderSeats();
+  renderBottomBar();
+}
+
+// ── Init & poll ──────────────────────────────
+
+fetchTable();
+setInterval(fetchTable, POLL_MS);
+</script>
+</body>
+</html>

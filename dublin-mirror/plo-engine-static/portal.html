@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>potlimitomaha.xyz — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0f0a;color:#c0d0b0;font-family:'JetBrains Mono',monospace;min-height:100vh}
+
+.header{
+  background:linear-gradient(135deg,#0d1a0d 0%,#142214 50%,#0d1a0d 100%);
+  border-bottom:1px solid #1a3a1a;
+  padding:24px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.header h1{font-family:'Chakra Petch',sans-serif;font-size:22px;color:#d4a843;letter-spacing:2px}
+.header .server-info{font-size:11px;color:#5a7a5a;text-align:right;line-height:1.6}
+.header .server-info span{color:#8aaa7a}
+
+.status-bar{
+  background:#070d07;padding:10px 32px;border-bottom:1px solid #0f1f0f;
+  display:flex;gap:24px;font-size:11px;color:#5a7a5a;
+}
+.status-bar .indicator{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.status-bar .green{background:#2ecc40;box-shadow:0 0 6px #2ecc40}
+.status-bar .red{background:#e74c3c;box-shadow:0 0 6px #e74c3c}
+.status-bar .yellow{background:#f1c40f;box-shadow:0 0 6px #f1c40f}
+.status-bar .grey{background:#555}
+
+.container{max-width:1200px;margin:0 auto;padding:32px 24px}
+
+.section-title{
+  font-family:'Chakra Petch',sans-serif;font-size:13px;color:#d4a843;
+  letter-spacing:3px;text-transform:uppercase;margin:32px 0 16px;
+  padding-bottom:8px;border-bottom:1px solid #1a2a1a;
+}
+.section-title:first-child{margin-top:0}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+
+.card{
+  background:linear-gradient(145deg,#0e170e,#121e12);
+  border:1px solid #1a2a1a;border-radius:8px;padding:20px;
+  transition:all 0.2s;position:relative;overflow:hidden;
+}
+.card:hover{border-color:#2a4a2a;transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.4)}
+.card .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.card .card-name{font-family:'Chakra Petch',sans-serif;font-size:15px;font-weight:700;color:#e0ead0}
+.card .card-port{font-size:10px;color:#4a6a4a;background:#0a120a;padding:2px 8px;border-radius:4px;border:1px solid #1a2a1a}
+.card .card-desc{font-size:11px;color:#6a8a6a;line-height:1.5;margin-bottom:16px}
+.card .card-status{display:flex;align-items:center;gap:6px;font-size:10px;margin-bottom:16px}
+.card .card-status .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.card .card-status .dot.up{background:#2ecc40;box-shadow:0 0 4px #2ecc40}
+.card .card-status .dot.down{background:#e74c3c;box-shadow:0 0 4px #e74c3c}
+.card .card-status .dot.unknown{background:#555}
+.card .card-status .label{color:#5a7a5a}
+
+.card .btn{
+  display:inline-block;padding:8px 20px;font-size:11px;font-family:'Chakra Petch',sans-serif;
+  font-weight:600;letter-spacing:1px;text-transform:uppercase;text-decoration:none;
+  background:linear-gradient(135deg,#1a3a1a,#2a5a2a);color:#d4a843;
+  border:1px solid #2a5a2a;border-radius:4px;cursor:pointer;transition:all 0.2s;
+}
+.card .btn:hover{background:linear-gradient(135deg,#2a5a2a,#3a7a3a);border-color:#d4a843;color:#fff}
+.card .btn.secondary{background:transparent;border-color:#1a3a1a;color:#5a8a5a}
+.card .btn.secondary:hover{border-color:#3a6a3a;color:#8aba7a}
+.card .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+.backend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.backend-item{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:#0c140c;border:1px solid #141e14;border-radius:6px;font-size:11px;
+}
+.backend-item .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.backend-item .dot.up{background:#2ecc40;box-shadow:0 0 4px #2ecc40}
+.backend-item .dot.down{background:#e74c3c;box-shadow:0 0 4px #e74c3c}
+.backend-item .dot.unknown{background:#555}
+.backend-item .name{color:#8aaa7a;flex:1}
+.backend-item .port{color:#3a5a3a;font-size:10px}
+
+.arch-map{
+  background:#080e08;border:1px solid #1a2a1a;border-radius:8px;padding:24px;
+  margin-bottom:24px;font-size:11px;line-height:1.8;color:#5a7a5a;
+  font-family:'JetBrains Mono',monospace;white-space:pre;overflow-x:auto;
+}
+.arch-map .highlight{color:#d4a843}
+.arch-map .green{color:#2ecc40}
+.arch-map .dim{color:#2a3a2a}
+
+.refresh-btn{
+  position:fixed;bottom:20px;right:20px;width:44px;height:44px;
+  background:#1a3a1a;border:1px solid #2a5a2a;border-radius:50%;
+  color:#d4a843;font-size:18px;cursor:pointer;transition:all 0.2s;
+  display:flex;align-items:center;justify-content:center;
+}
+.refresh-btn:hover{background:#2a5a2a;transform:rotate(90deg)}
+
+@media(max-width:600px){
+  .header{flex-direction:column;gap:12px;text-align:center}
+  .header .server-info{text-align:center}
+  .status-bar{flex-wrap:wrap;gap:12px}
+  .grid{grid-template-columns:1fr}
+  .backend-grid{grid-template-columns:1fr}
+  .arch-map{font-size:9px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>POTLIMITOMAHA.XYZ</h1>
+  <div class="server-info">
+    Dublin <span>c5.4xlarge</span> | <span>52.51.80.68</span><br>
+    <span id="uptime">--</span> | <span id="clock">--</span> UTC
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <span><span class="indicator grey" id="ind-nginx"></span>nginx</span>
+  <span><span class="indicator grey" id="ind-flask"></span>Flask API</span>
+  <span><span class="indicator grey" id="ind-engine"></span>Equity Engine</span>
+  <span><span class="indicator grey" id="ind-db"></span>PostgreSQL</span>
+</div>
+
+<div class="container">
+
+  <div class="section-title">Architecture</div>
+  <div class="arch-map" id="archMap"></div>
+
+  <div class="section-title">Applications</div>
+  <div class="grid" id="appGrid"></div>
+
+  <div class="section-title">Backend Services</div>
+  <div class="backend-grid" id="backendGrid"></div>
+
+  <div class="section-title">Player Containers</div>
+  <div class="backend-grid" id="playerGrid"></div>
+
+  <div class="section-title">Environments</div>
+  <div class="grid" id="envGrid"></div>
+
+  <div class="section-title">Cape Town — nuts4poker.com (Production)</div>
+  <div class="grid" id="ctGrid"></div>
+
+  <div class="section-title">Local Services</div>
+  <div class="backend-grid" id="localGrid"></div>
+
+</div>
+
+<button class="refresh-btn" onclick="checkAll()" title="Refresh status">&#x21bb;</button>
+
+<script>
+const APPS = [
+  { name:"Equity Engine", path:"/engine/", port:"5050", desc:"PLO equity calculator. Hand ranges, board runouts, equity vs villain.", health:"/api/auth/verify", healthExpect:401 },
+  { name:"Remote Control", path:"/remote", port:"5000", desc:"Live table view. 9-seat display, action buttons, pre-action controls.", health:"/api/health" },
+  { name:"Hand Collector", path:"/collector/", port:"5000", desc:"Collect and tag hands from live play. Auto-dedupe, BOARD protocol.", health:null },
+  { name:"HUD Dashboard", path:"/hud/", port:"3001", desc:"Heads-up display stats. Player tendencies, session tracking.", health:null },
+  { name:"Tournaments", path:"/tournaments/", port:"3002", desc:"Tournament tracker. Blind levels, stack sizes, ICM.", health:null },
+  { name:"PokerBet Mirror", path:"/pokerbet/", port:"3001", desc:"PokerBet table mirror. Real-time data from live tables.", health:null },
+];
+
+const BACKENDS = [
+  { name:"Flask API", port:"5000", health:"/api/health" },
+  { name:"Equity Engine", port:"5050", health:"/api/auth/verify", healthExpect:401 },
+  { name:"N4P System", port:"5001", health:null },
+  { name:"Multi-site API", port:"8400", health:null },
+  { name:"HUD Server", port:"3001", health:null },
+  { name:"Tournament Server", port:"3002", health:null },
+  { name:"Legacy Gunicorn", port:"8081", health:null },
+  { name:"Collector API", port:"6001", health:null },
+  { name:"PostgreSQL", port:"5432", health:null },
+];
+
+const PLAYERS = [
+  "kele1","kana","leni","pretty88","lont","daniellek","pile","hele"
+];
+
+const ENVS = [
+  { name:"Dublin", label:"potlimitomaha.xyz", ip:"52.51.80.68", type:"c5.4xlarge", role:"Backend + Frontend (new)", color:"#2ecc40" },
+  { name:"Cape Town", label:"nuts4poker.com", ip:"15.240.44.80", type:"t3.micro", role:"Production Frontend", color:"#3498db" },
+  { name:"Local", label:"localhost", ip:"127.0.0.1", type:"Dev Machine", role:"Development + Tunnels", color:"#9b59b6" },
+];
+
+const CT_APPS = [
+  { name:"Engine", url:"https://nuts4poker.com/engine/", desc:"Production equity engine UI" },
+  { name:"Remote Control", url:"https://nuts4poker.com/remote", desc:"Production remote table control" },
+  { name:"Collector", url:"https://nuts4poker.com/collector/", desc:"Production hand collector" },
+];
+
+const LOCAL_SERVICES = [
+  { name:"Flask Tunnel", port:"5000", desc:"SSH tunnel → Dublin :5000" },
+  { name:"N4P Engine", port:"8100", desc:"Local equity engine" },
+  { name:"N4P Remote", port:"8300", desc:"Local remote control" },
+  { name:"HUD API", port:"9100", desc:"Poker HUD stats" },
+  { name:"PostgreSQL", port:"5432", desc:"Local database" },
+  { name:"MySQL", port:"3306", desc:"Local MySQL" },
+  { name:"Cyber Scraper", port:"--", desc:"E-Basketball scraper" },
+  { name:"Poker Assistant", port:"--", desc:"Decision assistant" },
+];
+
+function renderArchMap(){
+  document.getElementById('archMap').innerHTML =
+    '<span class="highlight">Browser</span> <span class="dim">───</span> <span class="green">443/SSL</span> <span class="dim">───</span> <span class="highlight">nginx-proxy</span> <span class="dim">(Docker, host net)</span>\n' +
+    '<span class="dim">                          │</span>\n' +
+    '<span class="dim">            ┌─────────────┼─────────────┬──────────────┐</span>\n' +
+    '<span class="dim">            │             │             │              │</span>\n' +
+    '    <span class="highlight">/engine/</span>      <span class="highlight">/remote</span>      <span class="highlight">/collector/</span>    <span class="highlight">/api/*</span>\n' +
+    '    <span class="dim">static</span>        <span class="dim">static</span>       <span class="dim">static</span>         <span class="dim">│</span>\n' +
+    '<span class="dim">            │                                      │</span>\n' +
+    '    <span class="dim">API calls ──────────────────────────┐          │</span>\n' +
+    '<span class="dim">            │                           │          │</span>\n' +
+    '    <span class="green">:5050</span> <span class="dim">Equity Engine</span>        <span class="green">:5000</span> <span class="dim">Flask (Remote API)</span>\n' +
+    '<span class="dim">            │                           │</span>\n' +
+    '    <span class="dim">gunicorn+eventlet</span>           <span class="dim">snapshot/commands/table</span>\n' +
+    '<span class="dim">            │                           │</span>\n' +
+    '    <span class="green">:5432</span> <span class="dim">PostgreSQL</span>           <span class="dim">9 Player Containers</span>\n';
+}
+
+function renderApps(){
+  const g = document.getElementById('appGrid');
+  g.innerHTML = APPS.map(a =>
+    '<div class="card" id="app-'+a.port+'">' +
+      '<div class="card-header">' +
+        '<span class="card-name">'+a.name+'</span>' +
+        '<span class="card-port">:'+a.port+'</span>' +
+      '</div>' +
+      '<div class="card-desc">'+a.desc+'</div>' +
+      '<div class="card-status"><span class="dot unknown" id="dot-app-'+a.name.replace(/\s/g,'')+'"></span><span class="label" id="lbl-app-'+a.name.replace(/\s/g,'')+'">checking...</span></div>' +
+      '<div class="btn-row">' +
+        '<a href="'+a.path+'" class="btn">Open</a>' +
+        '<a href="'+a.path+'" target="_blank" class="btn secondary">New Tab</a>' +
+      '</div>' +
+    '</div>'
+  ).join('');
+}
+
+function renderBackends(){
+  const g = document.getElementById('backendGrid');
+  g.innerHTML = BACKENDS.map(b =>
+    '<div class="backend-item">' +
+      '<span class="dot unknown" id="dot-be-'+b.port+'"></span>' +
+      '<span class="name">'+b.name+'</span>' +
+      '<span class="port">:'+b.port+'</span>' +
+    '</div>'
+  ).join('');
+}
+
+function renderPlayers(){
+  const g = document.getElementById('playerGrid');
+  g.innerHTML = PLAYERS.map(p =>
+    '<div class="backend-item">' +
+      '<span class="dot unknown" id="dot-player-'+p+'"></span>' +
+      '<span class="name">bot-'+p+'</span>' +
+      '<span class="port">container</span>' +
+    '</div>'
+  ).join('');
+}
+
+async function checkHealth(url, expect){
+  try {
+    const r = await fetch(url, {method:'GET', cache:'no-store', signal:AbortSignal.timeout(5000)});
+    if(expect) return r.status === expect;
+    return r.ok;
+  } catch(e){ return false; }
+}
+
+async function checkAll(){
+  // Check apps
+  for(const a of APPS){
+    const id = a.name.replace(/\s/g,'');
+    const dot = document.getElementById('dot-app-'+id);
+    const lbl = document.getElementById('lbl-app-'+id);
+    if(a.health){
+      const ok = await checkHealth(a.health, a.healthExpect);
+      dot.className = 'dot '+(ok?'up':'down');
+      lbl.textContent = ok ? 'online' : 'unreachable';
+    } else {
+      // Check if path loads
+      const ok = await checkHealth(a.path);
+      dot.className = 'dot '+(ok?'up':'unknown');
+      lbl.textContent = ok ? 'serving' : 'unknown';
+    }
+  }
+
+  // Status bar indicators
+  const nginx = await checkHealth('/health');
+  document.getElementById('ind-nginx').className = 'indicator '+(nginx?'green':'red');
+
+  const flask = await checkHealth('/api/health');
+  document.getElementById('ind-flask').className = 'indicator '+(flask?'green':'red');
+
+  const engine = await checkHealth('/api/auth/verify', 401);
+  document.getElementById('ind-engine').className = 'indicator '+(engine?'green':'red');
+
+  // DB - check indirectly via flask
+  document.getElementById('ind-db').className = 'indicator '+(flask?'green':'yellow');
+}
+
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toUTCString().slice(17,25);
+}
+
+function renderEnvs(){
+  const g = document.getElementById('envGrid');
+  g.innerHTML = ENVS.map(e =>
+    '<div class="card">' +
+      '<div class="card-header">' +
+        '<span class="card-name" style="color:'+e.color+'">'+e.name+'</span>' +
+        '<span class="card-port">'+e.type+'</span>' +
+      '</div>' +
+      '<div class="card-desc">'+e.label+' &mdash; '+e.ip+'<br>'+e.role+'</div>' +
+    '</div>'
+  ).join('');
+}
+
+function renderCapeTown(){
+  const g = document.getElementById('ctGrid');
+  g.innerHTML = CT_APPS.map(a =>
+    '<div class="card">' +
+      '<div class="card-header">' +
+        '<span class="card-name">'+a.name+'</span>' +
+        '<span class="card-port" style="border-color:#1a2a4a;color:#4a6aaa">PROD</span>' +
+      '</div>' +
+      '<div class="card-desc">'+a.desc+'</div>' +
+      '<div class="btn-row">' +
+        '<a href="'+a.url+'" target="_blank" class="btn" style="background:linear-gradient(135deg,#1a2a4a,#2a4a6a);border-color:#2a4a6a">Open</a>' +
+      '</div>' +
+    '</div>'
+  ).join('');
+}
+
+function renderLocal(){
+  const g = document.getElementById('localGrid');
+  g.innerHTML = LOCAL_SERVICES.map(s =>
+    '<div class="backend-item" style="border-color:#1a1a2a">' +
+      '<span class="dot unknown"></span>' +
+      '<span class="name" style="color:#9a8aba">'+s.name+'</span>' +
+      '<span class="port" style="color:#4a3a6a">'+s.port+'</span>' +
+    '</div>'
+  ).join('');
+}
+
+// Init
+renderArchMap();
+renderApps();
+renderBackends();
+renderPlayers();
+renderEnvs();
+renderCapeTown();
+renderLocal();
+checkAll();
+setInterval(updateClock, 1000);
+setInterval(checkAll, 30000);
+updateClock();
+</script>
+</body>
+</html>

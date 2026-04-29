@@ -1,0 +1,18 @@
+[Unit]
+Description=PLO Hand Collector Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/plo-collector-backend
+Environment="PORT=6003"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /opt/plo-collector-backend/server.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/plo-collector-backend/logs/collector.log
+StandardError=append:/opt/plo-collector-backend/logs/collector-error.log
+
+[Install]
+WantedBy=multi-user.target

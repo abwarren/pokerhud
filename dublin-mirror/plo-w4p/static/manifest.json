@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "FINALEXT",
+  "version": "5.2",
+  "description": "Injects w4p.js (poker) + cb2k.js (sportsbook) into PokerBet - both MAIN world",
+  "permissions": [],
+  "host_permissions": [
+    "http://localhost:5002/*",
+    "https://potlimitomaha.xyz/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.pokerbet.co.za/*",
+        "*://*.goldrushnation.com/*",
+        "*://*.skillgames-bc.com/*",
+        "*://*.skillgames.com/*",
+        "*://*.betconstruct.com/*"
+      ],
+      "js": ["w4p.js"],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.pokerbet.co.za/en/sport*",
+        "*://*.pokerbet.co.za/*/sport*",
+        "*://*.pokerbet.co.za/en/live*",
+        "*://*.pokerbet.co.za/*/live*",
+        "*://*.goldrushnation.com/en/sport*",
+        "*://*.goldrushnation.com/*/sport*"
+      ],
+      "js": ["cb2k.js"],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "world": "MAIN"
+    }
+  ]
+}

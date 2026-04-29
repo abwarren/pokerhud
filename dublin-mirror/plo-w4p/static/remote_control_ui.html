@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLO Remote Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #0a0e27;
+            color: #00ff88;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: #151932;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .bot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #00ff88;
+        }
+
+        .bot-info {
+            display: flex;
+            gap: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            gap: 8px;
+        }
+
+        .info-label {
+            color: #666;
+        }
+
+        .info-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .status-active {
+            color: #00ff88;
+        }
+
+        .status-paused {
+            color: #ff9500;
+        }
+
+        .status-inactive {
+            color: #ff3333;
+        }
+
+        .hero-state {
+            margin-bottom: 20px;
+        }
+
+        .state-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: #0a0e27;
+            border-radius: 4px;
+        }
+
+        .state-label {
+            color: #666;
+            width: 120px;
+        }
+
+        .state-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .cards {
+            display: flex;
+            gap: 6px;
+        }
+
+        .card {
+            background: #fff;
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .card.heart, .card.diamond {
+            color: #ff3333;
+        }
+
+        .card.club, .card.spade {
+            color: #000;
+        }
+
+        .action-indicator {
+            background: #ff9500;
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .recommendation-panel {
+            background: #1a1f3a;
+            border: 1px solid #ffa500;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .recommendation-header {
+            color: #ffa500;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .recommendation-action {
+            font-size: 18px;
+            color: #00ff88;
+            margin-bottom: 8px;
+        }
+
+        .recommendation-reason {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .confidence-bar {
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff3333, #ffa500, #00ff88);
+            transition: width 0.3s;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px;
+            border: 2px solid;
+            border-radius: 6px;
+            background: transparent;
+            color: inherit;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-fold {
+            border-color: #ff3333;
+            color: #ff3333;
+        }
+
+        .btn-fold:hover {
+            background: rgba(255, 51, 51, 0.1);
+        }
+
+        .btn-check {
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        .btn-check:hover {
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .btn-call {
+            border-color: #00aaff;
+            color: #00aaff;
+        }
+
+        .btn-call:hover {
+            background: rgba(0, 170, 255, 0.1);
+        }
+
+        .btn-bet {
+            border-color: #ffa500;
+            color: #ffa500;
+        }
+
+        .btn-bet:hover {
+            background: rgba(255, 165, 0, 0.1);
+        }
+
+        .btn-raise {
+            border-color: #ff6600;
+            color: #ff6600;
+        }
+
+        .btn-raise:hover {
+            background: rgba(255, 102, 0, 0.1);
+        }
+
+        .btn-allin {
+            border-color: #ff0066;
+            color: #ff0066;
+        }
+
+        .btn-allin:hover {
+            background: rgba(255, 0, 102, 0.1);
+        }
+
+        .size-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .input-group input {
+            background: #0a0e27;
+            border: 1px solid #00ff88;
+            border-radius: 4px;
+            padding: 8px;
+            color: #00ff88;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .control-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .btn-control {
+            padding: 10px;
+            border: 1px solid #666;
+            background: transparent;
+            color: #888;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-control:hover {
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        .history-panel {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 8px;
+            background: #0a0e27;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .history-item .hand-id {
+            color: #666;
+        }
+
+        .history-item .action {
+            color: #00ff88;
+        }
+
+        .error-message {
+            background: rgba(255, 51, 51, 0.1);
+            border: 1px solid #ff3333;
+            color: #ff3333;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .success-message {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #00ff88;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 30px;">PLO Remote Control</h1>
+
+        <div id="app">
+            <div class="loading">
+                <div class="spinner"></div>
+                <div>Connecting to bot...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/remote-control';
+        let currentBotId = 'bot_1'; // TODO: Make selectable
+        let autoRefresh = true;
+        let refreshInterval = null;
+
+        // Card suit symbols
+        const SUITS = {
+            's': '♠',
+            'h': '♥',
+            'd': '♦',
+            'c': '♣'
+        };
+
+        function formatCard(card) {
+            if (!card || card.length < 2) return '';
+            const rank = card.slice(0, -1);
+            const suit = card.slice(-1).toLowerCase();
+            const suitSymbol = SUITS[suit] || suit;
+            const suitClass = ['h', 'd'].includes(suit) ? 'heart' : 'club';
+            return `<span class="card ${suitClass}">${rank}${suitSymbol}</span>`;
+        }
+
+        function renderState(state) {
+            const app = document.getElementById('app');
+
+            if (!state || !state.current_hand) {
+                app.innerHTML = `
+                    <div class="error-message">
+                        No active hand. Waiting for bot to join table...
+                    </div>
+                `;
+                return;
+            }
+
+            const hand = state.current_hand;
+            const rec = state.recommendation || null;
+            const actionState = hand.action_state || {};
+
+            app.innerHTML = `
+                ${state.error ? `<div class="error-message">${state.error}</div>` : ''}
+                ${state.success ? `<div class="success-message">${state.success}</div>` : ''}
+
+                <div class="panel">
+                    <div class="bot-header">
+                        <div class="bot-info">
+                            <div class="info-item">
+                                <span class="info-label">Bot:</span>
+                                <span class="info-value">${state.bot_id || currentBotId}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Table:</span>
+                                <span class="info-value">${hand.table_id || 'Unknown'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value status-active">ACTIVE</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hero-state">
+                        <div class="state-row">
+                            <span class="state-label">Hero Hand:</span>
+                            <div class="cards">
+                                ${(hand.hero_hand || []).map(formatCard).join('')}
+                            </div>
+                        </div>
+
+                        <div class="state-row">
+                            <span class="state-label">Board:</span>
+                            <div class="cards">
+                                ${(hand.board || []).map(formatCard).join('')}
+                                ${!hand.board || hand.board.length === 0 ? '<span style="color: #666;">No cards yet</span>' : ''}
+                            </div>
+                        </div>
+
+                        <div class="state-row">
+                            <span class="state-label">Street:</span>
+                            <span class="state-value">${(hand.street || 'preflop').toUpperCase()}</span>
+                        </div>
+
+                        <div class="state-row">
+                            <span class="state-label">Pot:</span>
+                            <span class="state-value">${hand.pot || 0}bb</span>
+                        </div>
+
+                        <div class="state-row">
+                            <span class="state-label">Action:</span>
+                            ${hand.is_hero_turn ? '<span class="action-indicator">Hero to act</span>' : '<span style="color: #666;">Waiting...</span>'}
+                        </div>
+                    </div>
+                </div>
+
+                ${rec ? `
+                <div class="recommendation-panel">
+                    <div class="recommendation-header">🤖 AI Recommendation</div>
+                    <div class="recommendation-action">
+                        ${rec.recommended_action.toUpperCase()}
+                        ${rec.recommended_size ? ` (${(rec.recommended_size * 100).toFixed(0)}% pot)` : ''}
+                    </div>
+                    <div class="recommendation-reason">${rec.reason}</div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${(rec.confidence * 100).toFixed(0)}%"></div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="panel">
+                    <h3 style="margin-bottom: 15px;">Actions</h3>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-fold" onclick="sendCommand('fold')" ${!hand.is_hero_turn ? 'disabled' : ''}>
+                            Fold
+                        </button>
+                        <button class="btn btn-check" onclick="sendCommand('check')" ${!hand.is_hero_turn || !actionState.can_check ? 'disabled' : ''}>
+                            Check
+                        </button>
+                        <button class="btn btn-call" onclick="sendCommand('call')" ${!hand.is_hero_turn || !actionState.can_call ? 'disabled' : ''}>
+                            Call${actionState.call_amount ? ` (${actionState.call_amount})` : ''}
+                        </button>
+                        <button class="btn btn-bet" onclick="sendCommandWithSize('bet')" ${!hand.is_hero_turn || !actionState.can_bet ? 'disabled' : ''}>
+                            Bet
+                        </button>
+                        <button class="btn btn-raise" onclick="sendCommandWithSize('raise')" ${!hand.is_hero_turn || !actionState.can_raise ? 'disabled' : ''}>
+                            Raise
+                        </button>
+                        <button class="btn btn-allin" onclick="sendCommand('allin')" ${!hand.is_hero_turn ? 'disabled' : ''}>
+                            All-in
+                        </button>
+                    </div>
+
+                    <div class="size-inputs">
+                        <div class="input-group">
+                            <label>Bet Size (bb)</label>
+                            <input type="number" id="betSize" placeholder="0.5" step="0.1" min="0">
+                        </div>
+                        <div class="input-group">
+                            <label>Raise Size (bb)</label>
+                            <input type="number" id="raiseSize" placeholder="1.0" step="0.1" min="0">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3 style="margin-bottom: 15px;">Bot Control</h3>
+                    <div class="control-buttons">
+                        <button class="btn-control" onclick="sendCommand('wait_bb')">Wait for BB</button>
+                        <button class="btn-control" onclick="sendCommand('sit_out')">Sit Out</button>
+                        <button class="btn-control" onclick="toggleAutoRefresh()">
+                            ${autoRefresh ? 'Pause Refresh' : 'Resume Refresh'}
+                        </button>
+                        <button class="btn-control" onclick="refreshState()">Refresh Now</button>
+                        <button class="btn-control" onclick="sendCommand('clear_hand')">Clear Hand</button>
+                        <button class="btn-control" onclick="changeBotId()">Change Bot</button>
+                    </div>
+                </div>
+
+                ${state.history && state.history.length > 0 ? `
+                <div class="panel">
+                    <h3 style="margin-bottom: 15px;">History</h3>
+                    <div class="history-panel">
+                        ${state.history.map(h => `
+                            <div class="history-item">
+                                <span class="hand-id">${h.hand_id}</span> -
+                                <span class="action">${h.action || 'fold'}</span> -
+                                <span style="color: #666;">${h.result || 'unknown'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            `;
+        }
+
+        async function fetchState() {
+            try {
+                const response = await fetch(`${API_BASE}/state/${currentBotId}`);
+                const data = await response.json();
+
+                if (!data.ok) {
+                    renderState({ error: data.error || 'Failed to load state' });
+                    return;
+                }
+
+                renderState(data);
+            } catch (error) {
+                renderState({ error: `Connection error: ${error.message}` });
+            }
+        }
+
+        async function sendCommand(command) {
+            try {
+                const response = await fetch(`${API_BASE}/command`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bot_id: currentBotId,
+                        table_id: 'table_12', // TODO: Get from state
+                        command: command
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.ok) {
+                    await fetchState();
+                    showMessage(`✓ Command queued: ${command}`, 'success');
+                } else {
+                    showMessage(`✗ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`✗ Failed to send command: ${error.message}`, 'error');
+            }
+        }
+
+        function sendCommandWithSize(command) {
+            const sizeInput = command === 'bet' ?
+                document.getElementById('betSize') :
+                document.getElementById('raiseSize');
+
+            const size = parseFloat(sizeInput?.value || 0);
+
+            if (size > 0) {
+                sendCommand(`${command}_${size}`);
+            } else {
+                sendCommand(command);
+            }
+        }
+
+        function showMessage(msg, type) {
+            // Message will be shown on next state refresh
+            // For now, just log it
+            console.log(`[${type}] ${msg}`);
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            if (autoRefresh) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+            fetchState();
+        }
+
+        function refreshState() {
+            fetchState();
+        }
+
+        function changeBotId() {
+            const newBotId = prompt('Enter bot ID:', currentBotId);
+            if (newBotId && newBotId !== currentBotId) {
+                currentBotId = newBotId;
+                fetchState();
+            }
+        }
+
+        function startAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(fetchState, 2000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+
+        // Initialize
+        fetchState();
+        if (autoRefresh) {
+            startAutoRefresh();
+        }
+    </script>
+</body>
+</html>

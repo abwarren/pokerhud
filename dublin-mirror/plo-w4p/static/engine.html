@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PLO Engine</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Tab Bar Styles */
+    .tab-bar-container {
+      background: rgba(0, 0, 0, 0.5);
+      padding: 0;
+      border-radius: 0;
+      margin-bottom: 0;
+      border-bottom: 3px solid #00d4aa;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+    }
+
+    .tab {
+      flex: 1;
+      min-width: 120px;
+      padding: 15px 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      color: #888;
+      font-weight: 600;
+      font-size: 0.9em;
+      cursor: pointer;
+      transition: all 0.3s;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .tab:hover:not(.tab-active) {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .tab.tab-active {
+      background: linear-gradient(135deg, #00d4aa 0%, #00a896 100%);
+      color: #000;
+      font-weight: bold;
+      box-shadow: 0 -3px 10px rgba(0, 212, 170, 0.3);
+    }
+
+    .tab.tab-unallocated {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .tab.tab-unallocated:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #888;
+    }
+
+    /* Engine Layout */
+    .engine-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 54px);
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.4);
+      border-right: 2px solid rgba(0, 212, 170, 0.3);
+    }
+
+    .panel:last-child {
+      border-right: none;
+    }
+
+    .panel-header {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-bottom: 2px solid #00d4aa;
+    }
+
+    .panel-header h2 {
+      font-size: 1.5em;
+      color: #00d4aa;
+      letter-spacing: 2px;
+    }
+
+    .panel-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .left-panel {
+      width: 20%;
+      min-width: 280px;
+    }
+
+    .right-panel {
+      width: 80%;
+      flex: 1;
+    }
+
+    /* Collector Tabs */
+    .collector-tabs {
+      display: flex;
+      gap: 0;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 2px solid rgba(0, 212, 170, 0.3);
+      margin: -20px -20px 20px -20px;
+    }
+
+    .collector-tab {
+      flex: 1;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      color: #888;
+      font-weight: 600;
+      font-size: 0.85em;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .collector-tab:hover:not(.collector-tab-active) {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .collector-tab.collector-tab-active {
+      background: rgba(0, 212, 170, 0.2);
+      color: #00d4aa;
+      font-weight: bold;
+      border-bottom: 3px solid #00d4aa;
+    }
+
+    .collector-tab-content {
+      display: none;
+    }
+
+    .collector-tab-content.active {
+      display: block;
+    }
+
+    .logs-output {
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+      padding: 15px;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+      max-height: 500px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .log-entry {
+      margin-bottom: 10px;
+      padding: 8px;
+      border-left: 3px solid #666;
+    }
+
+    .log-entry.log-info {
+      border-left-color: #00d4aa;
+      background: rgba(0, 212, 170, 0.1);
+    }
+
+    .log-entry.log-error {
+      border-left-color: #f44336;
+      background: rgba(244, 67, 54, 0.1);
+    }
+
+    .log-entry.log-warning {
+      border-left-color: #ffc107;
+      background: rgba(255, 193, 7, 0.1);
+    }
+
+    .hero-results {
+      background: rgba(0, 212, 170, 0.1);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 15px;
+    }
+
+    .hero-results h3 {
+      color: #00d4aa;
+      margin-bottom: 15px;
+      font-size: 1.2em;
+    }
+
+    .hero-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+    }
+
+    .hero-stat .label {
+      color: #ccc;
+      font-weight: 600;
+    }
+
+    .hero-stat .value {
+      color: #00d4aa;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* Collector Panel */
+    .import-section {
+      margin-bottom: 20px;
+    }
+
+    .import-section h3 {
+      color: #00d4aa;
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+
+    .import-textarea {
+      width: 100%;
+      min-height: 150px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+      padding: 15px;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      resize: vertical;
+    }
+
+    .import-textarea:focus {
+      outline: none;
+      border-color: #00d4aa;
+    }
+
+    .import-btn {
+      background: #00d4aa;
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 10px;
+    }
+
+    .import-btn:hover {
+      background: #00ffcc;
+      transform: translateY(-2px);
+    }
+
+    .hand-list {
+      margin-top: 20px;
+    }
+
+    .hand-item {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #666;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Courier New', monospace;
+    }
+
+    .hand-item:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateX(5px);
+    }
+
+    .hand-item.selected {
+      border-left-color: #00d4aa;
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .hand-item .hero-hand {
+      color: #ffc107;
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .hand-item .board {
+      color: #00d4aa;
+      font-size: 0.9em;
+    }
+
+    .hand-item .variant-badge {
+      display: inline-block;
+      background: rgba(0, 212, 170, 0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      margin-top: 8px;
+      color: #00d4aa;
+    }
+
+    /* Engine Panel */
+    .variant-selector {
+      margin-bottom: 20px;
+    }
+
+    .variant-selector label {
+      display: block;
+      color: #00d4aa;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .variant-selector select {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1em;
+      cursor: pointer;
+    }
+
+    .variant-selector select:focus {
+      outline: none;
+      border-color: #00d4aa;
+    }
+
+    .engine-textarea {
+      width: 100%;
+      min-height: 200px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 8px;
+      padding: 15px;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 1em;
+      resize: vertical;
+      margin-bottom: 20px;
+    }
+
+    .engine-textarea:focus {
+      outline: none;
+      border-color: #00d4aa;
+    }
+
+    .engine-info {
+      background: rgba(0, 212, 170, 0.1);
+      padding: 15px;
+      border-radius: 8px;
+      border-left: 4px solid #00d4aa;
+      margin-bottom: 20px;
+    }
+
+    .engine-info h3 {
+      color: #00d4aa;
+      margin-bottom: 10px;
+    }
+
+    .engine-info p {
+      color: #ccc;
+      line-height: 1.6;
+      margin: 5px 0;
+    }
+
+    .engine-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .engine-btn {
+      flex: 1;
+      padding: 15px;
+      background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      font-weight: bold;
+      font-size: 1em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .engine-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
+    }
+
+    .engine-btn.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .engine-btn.secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 5px 15px rgba(255, 255, 255, 0.2);
+    }
+
+    /* Placeholder Modal */
+    .placeholder-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .placeholder-modal.active {
+      display: flex;
+    }
+
+    .placeholder-content {
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      padding: 60px 80px;
+      border-radius: 15px;
+      border: 3px solid #00d4aa;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    }
+
+    .placeholder-content h2 {
+      font-size: 2.5em;
+      margin-bottom: 20px;
+      color: #00d4aa;
+    }
+
+    .placeholder-content p {
+      font-size: 1.2em;
+      color: #fff;
+      margin-bottom: 30px;
+    }
+
+    .placeholder-close {
+      background: #f44336;
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .placeholder-close:hover {
+      background: #d32f2f;
+      transform: translateY(-2px);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .engine-container {
+        flex-direction: column;
+      }
+      
+      .left-panel, .right-panel {
+        width: 100%;
+        min-width: 100%;
+      }
+      
+      .left-panel {
+        max-height: 400px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Tab Bar -->
+  <div class="tab-bar-container">
+    <div class="tab-bar">
+      <button class="tab" onclick="handleTabClick('RemoteControl')" id="tab-RemoteControl">Remote Control</button>
+      <button class="tab tab-active" onclick="handleTabClick('Engine')" id="tab-Engine">Engine</button>
+      <button class="tab tab-unallocated" onclick="handleTabClick('Tab3')" id="tab-Tab3">Tab 3</button>
+      <button class="tab tab-unallocated" onclick="handleTabClick('Tab4')" id="tab-Tab4">Tab 4</button>
+      <button class="tab tab-unallocated" onclick="handleTabClick('Tab5')" id="tab-Tab5">Tab 5</button>
+      <button class="tab tab-unallocated" onclick="handleTabClick('Tab6')" id="tab-Tab6">Tab 6</button>
+      <button class="tab tab-unallocated" onclick="handleTabClick('Tab7')" id="tab-Tab7">Tab 7</button>
+      <button class="tab tab-unallocated" onclick="handleTabClick('Tab8')" id="tab-Tab8">Tab 8</button>
+    </div>
+  </div>
+
+  <!-- Placeholder Modal -->
+  <div class="placeholder-modal" id="placeholderModal">
+    <div class="placeholder-content">
+      <h2 id="placeholderTitle">Feature Coming Soon</h2>
+      <p>This tab is currently unallocated.</p>
+      <button class="placeholder-close" onclick="closePlaceholder()">Close</button>
+    </div>
+  </div>
+
+  <!-- Engine Layout -->
+  <div class="engine-container">
+    <!-- Left Panel: Collector (20%) -->
+    <div class="panel left-panel">
+      <div class="panel-header">
+        <h2>COLLECTOR</h2>
+      </div>
+      <div class="panel-content">
+        <!-- Collector Tabs -->
+        <div class="collector-tabs">
+          <button class="collector-tab collector-tab-active" onclick="switchCollectorTab('results')">Results</button>
+          <button class="collector-tab" onclick="switchCollectorTab('logs')">Logs</button>
+        </div>
+
+        <!-- Import Section -->
+        <div class="import-section">
+          <h3>Import Hand Data</h3>
+          <textarea
+            id="importTextarea"
+            class="import-textarea"
+            placeholder="Paste hand data here...&#10;&#10;Format (one hand per line):&#10;AsKsQhJh  ← Player 1&#10;2d2c3d3c  ← Player 2&#10;7h7c8h8d  ← Player 3&#10;AdKdQc    ← Board (last line)"
+          ></textarea>
+          <button class="import-btn" onclick="importHands()">Parse Hands</button>
+        </div>
+
+        <!-- Results Tab Content -->
+        <div id="resultsTab" class="collector-tab-content active">
+          <div id="heroResults">
+            <!-- Hero-only results will be populated here -->
+          </div>
+        </div>
+
+        <!-- Logs Tab Content -->
+        <div id="logsTab" class="collector-tab-content">
+          <div id="logsOutput" class="logs-output">
+            <div class="log-entry log-info">Collector initialized. Waiting for hand data...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: ENGINE (80%) -->
+    <div class="panel right-panel">
+      <div class="panel-header">
+        <h2>ENGINE</h2>
+      </div>
+      <div class="panel-content">
+        <div class="variant-selector">
+          <label for="variantSelect">Game Variant:</label>
+          <select id="variantSelect" onchange="updateEngineInput()">
+            <option value="">-- Select Variant --</option>
+            <option value="PLO4-6MAX">PLO4-6MAX (6 players, 4 hole cards)</option>
+            <option value="PLO4-8MAX">PLO4-8MAX (8 players, 4 hole cards)</option>
+            <option value="PLO4-9MAX">PLO4-9MAX (9 players, 4 hole cards)</option>
+            <option value="PLO5-6MAX">PLO5-6MAX (6 players, 5 hole cards)</option>
+            <option value="PLO5-5MAX">PLO5-5MAX (5 players, 5 hole cards)</option>
+            <option value="PLO6-5MAX">PLO6-5MAX (5 players, 6 hole cards)</option>
+            <option value="PLO6-6MAX">PLO6-6MAX (6 players, 6 hole cards)</option>
+          </select>
+        </div>
+
+        <div class="engine-info" id="engineInfo">
+          <h3>Engine Input</h3>
+          <p id="infoVariant">Variant: <em>Not selected</em></p>
+          <p id="infoHero">Hero Hand: <em>Not selected</em></p>
+          <p id="infoBoard">Board: <em>Not selected</em></p>
+          <p id="infoConfig">Config: <em>-</em></p>
+        </div>
+
+        <textarea 
+          id="engineTextarea" 
+          class="engine-textarea" 
+          placeholder="Paste raw hands (one per line, board last)..."
+        ></textarea>
+
+        <div class="engine-actions">
+          <button class="engine-btn" onclick="runEngine()">Calculate Equity</button>
+          <button class="engine-btn secondary" onclick="clearEngine()">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CURRENT_PAGE = 'Engine';
+    const REMOTE_CONTROL_URL = 'https://test.potlimitomaha.xyz:8080';
+
+    // Game constraints
+    const MIN_PLAYERS = 5;
+    const MAX_PLAYERS = 9;
+    const MIN_HOLE_CARDS = 4;
+    const MAX_HOLE_CARDS = 7;
+
+    // Variant configuration
+    const VARIANT_CONFIG = {
+      'PLO4-6MAX': {players: 6, hole_cards: 4},
+      'PLO4-8MAX': {players: 8, hole_cards: 4},
+      'PLO4-9MAX': {players: 9, hole_cards: 4},
+      'PLO5-6MAX': {players: 6, hole_cards: 5},
+      'PLO5-5MAX': {players: 5, hole_cards: 5},
+      'PLO6-5MAX': {players: 5, hole_cards: 6},
+      'PLO6-6MAX': {players: 6, hole_cards: 6}
+    };
+
+    // State
+    let parsedHands = [];
+    let heroOnlyHands = [];
+    let logs = [];
+    let remoteControllerState = null;
+
+    function handleTabClick(tabName) {
+      if (tabName === 'RemoteControl') {
+        window.location.href = REMOTE_CONTROL_URL;
+      } else if (tabName === 'Engine') {
+        return;
+      } else {
+        showPlaceholder(tabName);
+      }
+    }
+
+    function showPlaceholder(tabName) {
+      const modal = document.getElementById('placeholderModal');
+      const title = document.getElementById('placeholderTitle');
+      title.textContent = tabName + ' - Coming Soon';
+      modal.classList.add('active');
+    }
+
+    function closePlaceholder() {
+      const modal = document.getElementById('placeholderModal');
+      modal.classList.remove('active');
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closePlaceholder();
+      }
+    });
+
+    function isValidVariant(variant) {
+      if (!(variant in VARIANT_CONFIG)) return false;
+      const cfg = VARIANT_CONFIG[variant];
+      return (
+        cfg.players >= MIN_PLAYERS &&
+        cfg.players <= MAX_PLAYERS &&
+        cfg.hole_cards >= MIN_HOLE_CARDS &&
+        cfg.hole_cards <= MAX_HOLE_CARDS
+      );
+    }
+
+    function parseVariant(variant) {
+      if (!isValidVariant(variant)) {
+        throw new Error('Invalid variant');
+      }
+      return VARIANT_CONFIG[variant];
+    }
+
+    function detectVariant(heroHand) {
+      const handLength = heroHand.replace(/\s/g, '').length;
+      const holeCards = handLength / 2;
+      
+      // Default to 6MAX for most variants
+      if (holeCards === 4) return 'PLO4-6MAX';
+      if (holeCards === 5) return 'PLO5-6MAX';
+      if (holeCards === 6) return 'PLO6-6MAX';
+      if (holeCards === 7) return null; // PLO7 not in list
+      
+      return null;
+    }
+
+    async function importHands() {
+      const textarea = document.getElementById('importTextarea');
+      const text = textarea.value.trim();
+
+      if (!text) {
+        addLog('error', 'No hand data to parse');
+        alert('Please paste hand data first');
+        return;
+      }
+
+      addLog('info', '=== Starting Hand Import ===');
+      addLog('info', `Raw input length: ${text.length} characters`);
+
+      // Fetch remote controller state for hero seat identification
+      await fetchRemoteControllerState();
+
+      parsedHands = [];
+      heroOnlyHands = [];
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+      addLog('info', `Parsed ${lines.length} lines from input`);
+
+      // Parse hands: last line is board, previous lines are players
+      let handIndex = 0;
+      let i = 0;
+
+      while (i < lines.length) {
+        // Try to detect hand boundaries (simple approach: every N lines is a hand)
+        // For now, assume simple format: all lines except last are players, last is board
+        const players = [];
+        let board = '';
+
+        // Collect player lines (must be valid card format)
+        while (i < lines.length) {
+          const line = lines[i];
+          const cleanLine = line.replace(/\s/g, '');
+
+          // Check if this is a valid card line (2-14 chars, cards only)
+          if (cleanLine.length >= 2 && cleanLine.length <= 14 && /^[AKQJT2-9][shdc]+$/i.test(cleanLine)) {
+            players.push({
+              seat: players.length,
+              cards: cleanLine,
+              selfPlayer: false
+            });
+            i++;
+          } else {
+            break;
+          }
+        }
+
+        // Last collected line might be the board
+        if (players.length > 0) {
+          const lastPlayer = players[players.length - 1];
+          // If last line is short (likely flop/turn/river), treat as board
+          if (lastPlayer.cards.length <= 10) {
+            board = lastPlayer.cards;
+            players.pop();
+          }
+        }
+
+        // Now assign selfPlayer
+        if (players.length > 0) {
+          const heroSeat = determineHeroSeat(players.length);
+          const heroSource = remoteControllerState ? 'remote' : 'fallback';
+
+          // Assign exactly one selfPlayer
+          if (heroSeat >= 0 && heroSeat < players.length) {
+            players[heroSeat].selfPlayer = true;
+          }
+
+          // Validate: exactly one selfPlayer
+          const selfPlayerCount = players.filter(p => p.selfPlayer).length;
+          const valid = selfPlayerCount === 1;
+
+          const hand = {
+            index: handIndex,
+            players: players,
+            board: board,
+            heroSeat: heroSeat,
+            heroSource: heroSource,
+            valid: valid
+          };
+
+          parsedHands.push(hand);
+
+          // Log this hand
+          addLog(valid ? 'info' : 'error',
+            `Hand ${handIndex}: ${players.length} players, Hero seat ${heroSeat} (${heroSource}), ` +
+            `selfPlayer count: ${selfPlayerCount}, valid: ${valid}`);
+
+          // Extract hero-only if valid
+          if (valid) {
+            const hero = players.find(p => p.selfPlayer);
+            if (hero) {
+              heroOnlyHands.push({
+                handIndex: handIndex,
+                heroCards: hero.cards,
+                board: board,
+                variant: detectVariant(hero.cards)
+              });
+              addLog('info', `  → Hero hand: ${hero.cards}, Board: ${board || 'none'}`);
+            }
+          } else {
+            addLog('error', `  → Hand ${handIndex} excluded from aggregation (invalid selfPlayer count)`);
+          }
+
+          handIndex++;
+        }
+      }
+
+      addLog('info', `=== Import Complete ===`);
+      addLog('info', `Total hands parsed: ${parsedHands.length}`);
+      addLog('info', `Valid hero hands: ${heroOnlyHands.length}`);
+
+      renderResults();
+      renderLogs();
+    }
+
+    async function fetchRemoteControllerState() {
+      try {
+        addLog('info', 'Fetching remote controller state...');
+        const response = await fetch('/api/table/latest');
+        if (response.ok) {
+          const data = await response.json();
+          remoteControllerState = data;
+
+          // Find which seat is self (has name and is active)
+          if (data.seats && Array.isArray(data.seats)) {
+            const selfSeat = data.seats.findIndex(seat =>
+              seat && seat.name && seat.name !== 'Empty' && seat.is_self
+            );
+            if (selfSeat >= 0) {
+              addLog('info', `Remote state: Hero is seat ${selfSeat}`);
+              return;
+            }
+          }
+          addLog('warning', 'Remote state fetched but no self seat identified');
+        } else {
+          addLog('warning', 'Remote controller state unavailable');
+        }
+      } catch (err) {
+        addLog('warning', `Could not fetch remote state: ${err.message}`);
+      }
+      remoteControllerState = null;
+    }
+
+    function determineHeroSeat(playerCount) {
+      // Priority 1: Use remote controller state
+      if (remoteControllerState && remoteControllerState.seats) {
+        const selfSeatIndex = remoteControllerState.seats.findIndex(seat =>
+          seat && seat.is_self === true
+        );
+        if (selfSeatIndex >= 0 && selfSeatIndex < playerCount) {
+          return selfSeatIndex;
+        }
+      }
+
+      // Priority 2: Fallback to seat 0
+      return 0;
+    }
+
+    function addLog(type, message) {
+      const timestamp = new Date().toLocaleTimeString();
+      logs.push({ type, message, timestamp });
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('logsOutput');
+      container.innerHTML = logs.map(log => `
+        <div class="log-entry log-${log.type}">
+          [${log.timestamp}] ${log.message}
+        </div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function renderResults() {
+      const container = document.getElementById('heroResults');
+
+      if (heroOnlyHands.length === 0) {
+        container.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No valid hero hands yet</p>';
+        return;
+      }
+
+      // Aggregate hero stats
+      const totalHands = heroOnlyHands.length;
+      const variants = [...new Set(heroOnlyHands.map(h => h.variant).filter(Boolean))];
+
+      container.innerHTML = `
+        <div class="hero-results">
+          <h3>Hero-Only Dataset</h3>
+          <div class="hero-stat">
+            <span class="label">Total Hands:</span>
+            <span class="value">${totalHands}</span>
+          </div>
+          <div class="hero-stat">
+            <span class="label">Variants Detected:</span>
+            <span class="value">${variants.join(', ') || 'None'}</span>
+          </div>
+        </div>
+
+        <div class="hand-list">
+          ${heroOnlyHands.map((hand, idx) => `
+            <div class="hand-item" onclick="selectHeroHand(${idx})">
+              <div class="hero-hand">Hand ${hand.handIndex}: ${hand.heroCards}</div>
+              <div class="board">Board: ${hand.board || 'none'}</div>
+              ${hand.variant ? `<div class="variant-badge">${hand.variant}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function selectHeroHand(index) {
+      if (index < 0 || index >= heroOnlyHands.length) return;
+
+      const hand = heroOnlyHands[index];
+      updateEngineInput(hand);
+    }
+
+    function switchCollectorTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.collector-tab').forEach(tab => {
+        tab.classList.remove('collector-tab-active');
+      });
+      event.target.classList.add('collector-tab-active');
+
+      // Update tab content
+      document.getElementById('resultsTab').classList.remove('active');
+      document.getElementById('logsTab').classList.remove('active');
+
+      if (tabName === 'results') {
+        document.getElementById('resultsTab').classList.add('active');
+      } else if (tabName === 'logs') {
+        document.getElementById('logsTab').classList.add('active');
+      }
+    }
+
+    function updateEngineInput(hand) {
+      if (!hand) return;
+
+      const variant = document.getElementById('variantSelect').value || hand.variant;
+
+      // Update engine textarea
+      const engineTextarea = document.getElementById('engineTextarea');
+      engineTextarea.value = `Hero Hand: ${hand.heroCards}\nBoard: ${hand.board || 'none'}\nVariant: ${variant || 'auto'}`;
+
+      // Update info panel
+      document.getElementById('infoVariant').innerHTML = `Variant: <strong>${variant || 'Not selected'}</strong>`;
+      document.getElementById('infoHero').innerHTML = `Hero Hand: <strong>${hand.heroCards}</strong>`;
+      document.getElementById('infoBoard').innerHTML = `Board: <strong>${hand.board || 'none'}</strong>`;
+
+      if (variant && isValidVariant(variant)) {
+        const config = parseVariant(variant);
+        document.getElementById('infoConfig').innerHTML = `Config: <strong>${config.players} players, ${config.hole_cards} hole cards</strong>`;
+      } else {
+        document.getElementById('infoConfig').innerHTML = 'Config: <em>Invalid or not selected</em>';
+      }
+
+      // Store selected hand for runEngine
+      window.selectedHeroHand = hand;
+    }
+
+    function runEngine() {
+      const engineTextarea = document.getElementById('engineTextarea');
+      const textValue = engineTextarea.value.trim();
+      
+      // Check if user pasted raw hand data
+      if (textValue && !textValue.startsWith('Hero Hand:') && !textValue.startsWith('Calculating')) {
+        // Send as raw text format
+        addLog('info', 'Calculating equity from raw hand data...');
+        engineTextarea.value = 'Calculating equity...\n\nThis may take a few seconds.';
+        
+        fetch('/api/equity/calculate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            raw_text: textValue
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            engineTextarea.value = data.output;
+            addLog('info', `Equity calculation complete (${data.variant})`);
+            console.log('Equity result:', data);
+          } else {
+            engineTextarea.value = 'Error: ' + (data.error || 'Unknown error');
+            addLog('error', data.error || 'Calculation failed');
+          }
+        })
+        .catch(err => {
+          engineTextarea.value = 'Network error: ' + err.message;
+          addLog('error', 'Network error: ' + err.message);
+        });
+        return;
+      }
+      
+      // Fall back to collector-selected hand mode
+      if (!window.selectedHeroHand) {
+        alert('Please select a hero hand from the Collector Results first, or paste raw hand data');
+        return;
+      }
+
+      const variant = document.getElementById('variantSelect').value;
+      if (!variant || !isValidVariant(variant)) {
+        alert('Please select a valid variant');
+        return;
+      }
+
+      const hand = window.selectedHeroHand;
+
+      addLog('info', `Running equity calculation for hand ${hand.handIndex}`);
+
+      // Show calculating message
+      engineTextarea.value = 'Calculating equity...\n\nThis may take a few seconds.';
+
+      // Call equity API
+      fetch('/api/equity/calculate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          variant: variant,
+          hero_hand: hand.heroCards,
+          board: hand.board || '',
+          villain_hands: []  // Will use random opponent
+        })
+      }).then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          // Display results in textarea
+          engineTextarea.value = data.output;
+          addLog('info', 'Equity calculation complete');
+          console.log('Equity calculation complete:', data);
+        } else {
+          engineTextarea.value = 'Error: ' + (data.error || 'Unknown error') + '\n\n' + (data.stderr || '');
+          addLog('error', `Equity calculation failed: ${data.error || 'Unknown error'}`);
+          console.error('Equity calculation failed:', data);
+        }
+      })
+      .catch(err => {
+        engineTextarea.value = 'Network error: ' + err.message;
+        addLog('error', `Network error: ${err.message}`);
+        console.error('Equity API error:', err);
+      });
+    }
+
+    function clearEngine() {
+      document.getElementById('engineTextarea').value = '';
+      document.getElementById('variantSelect').value = '';
+      window.selectedHeroHand = null;
+
+      document.getElementById('infoVariant').innerHTML = 'Variant: <em>Not selected</em>';
+      document.getElementById('infoHero').innerHTML = 'Hero Hand: <em>Not selected</em>';
+      document.getElementById('infoBoard').innerHTML = 'Board: <em>Not selected</em>';
+      document.getElementById('infoConfig').innerHTML = 'Config: <em>-</em>';
+
+      addLog('info', 'Engine cleared');
+    }
+
+    // Load hands from collector API on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      loadCollectorHands();
+      setupAutoParse();
+    });
+
+    function setupAutoParse() {
+      const textarea = document.getElementById('importTextarea');
+
+      // Auto-parse on paste
+      textarea.addEventListener('paste', function(e) {
+        // Wait for paste to complete
+        setTimeout(() => {
+          addLog('info', 'Auto-parsing pasted data...');
+          importHands();
+        }, 100);
+      });
+    }
+
+    function loadCollectorHands() {
+      fetch('/api/collector/latest')
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && data.raw) {
+            document.getElementById('importTextarea').value = data.raw;
+            addLog('info', 'Loaded hand data from collector API');
+            console.log('Loaded hand from API:', data);
+          }
+        })
+        .catch(err => {
+          addLog('warning', `Could not load from collector API: ${err.message}`);
+          console.error('Collector fetch error:', err);
+        });
+    }
+  
+    // Force textarea to be editable
+    document.addEventListener('DOMContentLoaded', function() {
+      const engineTextarea = document.getElementById('engineTextarea');
+      engineTextarea.readOnly = false;
+      engineTextarea.disabled = false;
+      engineTextarea.style.cursor = 'text';
+      console.log('Engine textarea is now editable');
+    });
+
+  </script>
+</body>
+</html>

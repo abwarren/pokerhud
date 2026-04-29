@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLO Remote System - Shell Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a1a; color: #fff; }
+        .status-bar { background: #2a2a2a; padding: 10px 20px; border-bottom: 1px solid #444; display: flex; gap: 20px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .status-dot[data-status="healthy"] { background: #0f0; }
+        .status-dot[data-status="offline"] { background: #f00; }
+        .status-dot[data-status="unknown"] { background: #888; }
+        .metrics { padding: 20px; }
+        .metric-card { background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        .metric-card h3 { margin-bottom: 10px; color: #4a9eff; }
+        .metric-value { font-size: 24px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="status-bar">
+        <div id="status-remote">
+            Remote: <span class="status-dot" data-status="unknown"></span>
+        </div>
+        <div id="status-engine">
+            Engine: <span class="status-dot" data-status="unknown"></span>
+        </div>
+        <div id="status-collector">
+            Collector: <span class="status-dot" data-status="unknown"></span>
+        </div>
+    </div>
+
+    <div class="metrics">
+        <h2>System Metrics</h2>
+        <div class="metric-card">
+            <h3>Remote Control</h3>
+            <p>Uptime: <span id="remote-uptime">-</span></p>
+            <p>Memory: <span id="remote-memory">-</span></p>
+        </div>
+        <div class="metric-card">
+            <h3>Tables</h3>
+            <p class="metric-value" id="metric-tables">-</p>
+        </div>
+        <div class="metric-card">
+            <h3>Commands in Queue</h3>
+            <p class="metric-value" id="metric-commands">-</p>
+        </div>
+        <div class="metric-card">
+            <h3>Seats</h3>
+            <p class="metric-value" id="metric-seats">-</p>
+        </div>
+    </div>
+
+    <script>
+// Point to cloud server endpoints
+const CONFIG = {
+    REMOTE_API_URL: 'http://172.31.41.21:5000/api',
+    HEALTH_POLL_INTERVAL: 10000,
+    STATUS_POLL_INTERVAL: 5000,
+    DEBUG: true,
+};
+
+const STATE = {
+    services: {
+        remote: { status: 'unknown' },
+    }
+};
+
+function log(...args) {
+    if (CONFIG.DEBUG) console.log(...args);
+}
+
+async function pollServiceHealth() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/health`);
+        if (response.ok) {
+            const data = await response.json();
+            log('[Health]', data);
+            updateServiceHealth('remote', 'healthy');
+        } else {
+            updateServiceHealth('remote', 'offline');
+        }
+    } catch (error) {
+        log('[Health] Error:', error);
+        updateServiceHealth('remote', 'unknown');
+    }
+}
+
+async function pollServiceStatus() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/status`);
+        if (response.ok) {
+            const data = await response.json();
+            log('[Status]', data);
+            updateServiceStatus(data);
+        }
+    } catch (error) {
+        log('[Status] Error:', error);
+    }
+}
+
+function updateServiceHealth(service, status) {
+    const el = document.getElementById(`status-${service}`);
+    if (el) {
+        const dot = el.querySelector('.status-dot');
+        if (dot) dot.dataset.status = status;
+    }
+}
+
+function updateServiceStatus(data) {
+    const uptimeEl = document.getElementById('remote-uptime');
+    if (uptimeEl && data.uptime_seconds) {
+        const hours = Math.floor(data.uptime_seconds / 3600);
+        const minutes = Math.floor((data.uptime_seconds % 3600) / 60);
+        uptimeEl.textContent = `${hours}h ${minutes}m`;
+    }
+
+    const memEl = document.getElementById('remote-memory');
+    if (memEl && data.memory_mb) {
+        memEl.textContent = `${Math.round(data.memory_mb)} MB`;
+    }
+
+    const tablesEl = document.getElementById('metric-tables');
+    if (tablesEl) tablesEl.textContent = data.table_count || 0;
+
+    const cmdsEl = document.getElementById('metric-commands');
+    if (cmdsEl) cmdsEl.textContent = data.command_queue_size || 0;
+
+    const seatsEl = document.getElementById('metric-seats');
+    if (seatsEl) seatsEl.textContent = data.seat_count || 0;
+}
+
+// Start polling
+pollServiceHealth();
+pollServiceStatus();
+setInterval(pollServiceHealth, CONFIG.HEALTH_POLL_INTERVAL);
+setInterval(pollServiceStatus, CONFIG.STATUS_POLL_INTERVAL);
+
+log('[Shell] Test shell initialized');
+    </script>
+</body>
+</html>

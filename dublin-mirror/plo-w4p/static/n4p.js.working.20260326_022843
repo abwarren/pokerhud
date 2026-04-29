@@ -1,0 +1,659 @@
+/**
+ * N4P Remote Control Script v1.2
+ * Changes over v1.1:
+ *  - Fixed button selectors (user-verified from DOM)
+ *  - Added executeRaisePreset(min/half/pot/max) with confirm
+ *  - Added executeConfirm() for manual confirmation
+ *  - Cleaner preset button handling
+ */
+var N4P = {
+  POLL_MS:     250,
+  CMD_POLL_MS: 250,
+  API_BASE:    'https://engine.potlimitomaha.xyz:8080/api',
+  TRACKER_KEY: 'trk_default',
+  _playerName:    sessionStorage.getItem('n4p_player_name') || null,
+  _tableId:       null,
+  _seatNo:        null,
+  _preAction:     null,
+  _lastSampleKey: '',
+  _commandTimer:  null,
+  _sessionId:     'sess-' + Date.now(),
+  _executionLock: false,
+
+  // ── Selectors (user-verified from DOM) ────────────────────────────────────
+
+  SELECTORS: {
+    MIN_BUTTON:     ['sg-poker-betting-slider div.limits-buttons-v-p ul li:nth-child(1) p'],
+    HALF_BUTTON:    ['sg-poker-betting-slider div.limits-buttons-v-p ul li:nth-child(2) p'],
+    POT_BUTTON:     ['sg-poker-betting-slider div.limits-buttons-v-p ul li:nth-child(3) p'],
+    MAX_BUTTON:     ['sg-poker-betting-slider div.limits-buttons-v-p ul li:nth-child(4) p'],
+    FOLD_BUTTON:    ['.f-right-column-p ul li:nth-child(5)'],
+    CHECK_BUTTON:   ['.f-right-column-p ul li:nth-child(6)'],
+    CALL_BUTTON:    ['.f-right-column-p ul li:nth-child(6)'],
+    CONFIRM_BUTTON: ['div.f-right-column-p ul li:nth-child(3) div > p'],
+    RAISE_INPUT: [
+      '.f-right-column-p input[type="text"]',
+      'sg-poker-betting-slider input[type="text"]',
+      'input[type="text"]'
+    ],
+    CASHOUT_BUTTON: [
+      '[data-action="cashout"]',
+      'button.cash_out-c',
+      '.cash_out-c'
+    ]
+  },
+
+  // Pre-select checkbox labels
+  PRE_SELECT_LABELS: {
+    check_fold:  'Check/ Fold',
+    check_only:  'Check',
+    call_any:    'Call Any/ Check',
+    fold_any:    'Fold to any bet',
+    sit_out:     'Sit out next hand',
+    sit_out_bb:  'Sit out next big blind'
+  },
+
+  // ── Pre-select checkbox helpers ────────────────────────────────────────────
+
+  findPreSelectInput: function(labelText) {
+    var inputs = document.querySelectorAll('input[type="checkbox"], input.ng-untouched');
+    for (var i = 0; i < inputs.length; i++) {
+      var inp = inputs[i];
+      var label = inp.closest('label') || inp.parentElement;
+      if (label && label.innerText.trim() === labelText) return inp;
+    }
+    var labels = document.querySelectorAll('label');
+    for (var j = 0; j < labels.length; j++) {
+      if (labels[j].innerText.trim() === labelText) {
+        var inp2 = labels[j].querySelector('input') || labels[j].previousElementSibling;
+        if (inp2 && inp2.tagName === 'INPUT') return inp2;
+      }
+    }
+    return null;
+  },
+
+  setPreSelect: function(labelText, checked) {
+    var inp = this.findPreSelectInput(labelText);
+    if (!inp) {
+      console.log('[N4P] ✗ Pre-select not found: "' + labelText + '"');
+      return false;
+    }
+    if (inp.checked === checked) {
+      console.log('[N4P] Pre-select "' + labelText + '" already ' + (checked ? 'ON' : 'OFF'));
+      return true;
+    }
+    inp.checked = checked;
+    inp.dispatchEvent(new Event('change', { bubbles: true }));
+    inp.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    console.log('[N4P] ✓ Pre-select "' + labelText + '" → ' + (checked ? 'ON' : 'OFF'));
+    return true;
+  },
+
+  clearAllPreSelects: function() {
+    var self = this;
+    Object.values(this.PRE_SELECT_LABELS).forEach(function(label) {
+      self.setPreSelect(label, false);
+    });
+    this._preAction = null;
+    console.log('[N4P] All pre-selects cleared');
+  },
+
+  // ── Command handler ────────────────────────────────────────────────────────
+
+  handleCommand: function(cmd) {
+    console.log('[N4P] CMD RECEIVED → ' + cmd.type);
+    switch (cmd.type) {
+      case 'fold':         this.executeNow('fold');       break;
+      case 'check':        this.executeNow('check');      break;
+      case 'call':         this.executeNow('call');       break;
+      case 'raise_min':    this.executeRaisePreset('min'); break;
+      case 'raise_half':   this.executeRaisePreset('half'); break;
+      case 'raise_pot':    this.executeRaisePreset('pot'); break;
+      case 'raise_max':    this.executeRaisePreset('max'); break;
+      case 'confirm':      this.executeConfirm(); break;
+      case 'cashout':      this.executeCashout(); break;
+
+      case 'check_fold':
+        this.clearAllPreSelects();
+        this.setPreSelect(this.PRE_SELECT_LABELS.check_fold, true);
+        this._preAction = 'check_fold';
+        break;
+      case 'check_only':
+        this.clearAllPreSelects();
+        this.setPreSelect(this.PRE_SELECT_LABELS.check_only, true);
+        this._preAction = 'check_only';
+        break;
+      case 'check_call':
+      case 'call_any':
+        this.clearAllPreSelects();
+        this.setPreSelect(this.PRE_SELECT_LABELS.call_any, true);
+        this._preAction = 'call_any';
+        break;
+      case 'fold_any':
+        this.clearAllPreSelects();
+        this.setPreSelect(this.PRE_SELECT_LABELS.fold_any, true);
+        this._preAction = 'fold_any';
+        break;
+      case 'sit_out':
+        this.setPreSelect(this.PRE_SELECT_LABELS.sit_out, true);
+        break;
+      case 'sit_out_bb':
+        this.setPreSelect(this.PRE_SELECT_LABELS.sit_out_bb, true);
+        break;
+      case 'clear_preaction':
+        this.clearAllPreSelects();
+        break;
+    }
+  },
+
+  // ── Action executors ───────────────────────────────────────────────────────
+
+  executeNow: function(action) {
+    this.withLock(function() {
+      console.log('[N4P] Executing → ' + action.toUpperCase());
+
+      var selectorMap = {
+        fold:  this.SELECTORS.FOLD_BUTTON,
+        check: this.SELECTORS.CHECK_BUTTON,
+        call:  this.SELECTORS.CALL_BUTTON
+      };
+      var keywordMap = {
+        fold:  ['fold'],
+        check: ['check'],
+        call:  ['call']
+      };
+
+      // For check/call — same li, distinguish by text
+      if (action === 'check' || action === 'call') {
+        var li = this.findFirstVisible(this.SELECTORS.CHECK_BUTTON);
+        if (li) {
+          var text = li.innerText.toLowerCase().trim();
+          if (action === 'check' && !text.includes('check')) {
+            console.log('[N4P] ✗ CHECK not available (button shows: "' + text + '")');
+            return;
+          }
+          if (action === 'call' && !text.includes('call')) {
+            console.log('[N4P] ✗ CALL not available (button shows: "' + text + '")');
+            return;
+          }
+          li.click();
+          console.log('[N4P] ✓ EXECUTED → ' + action.toUpperCase() + ' (text: "' + text + '")');
+          return;
+        }
+      }
+
+      if (this.clickWithFallback(selectorMap[action], keywordMap[action])) {
+        console.log('[N4P] ✓ EXECUTED → ' + action.toUpperCase());
+      } else {
+        console.log('[N4P] ✗ BUTTON NOT FOUND for ' + action.toUpperCase());
+      }
+    }.bind(this));
+  },
+
+  executeRaisePreset: function(preset) {
+    this.withLock(function() {
+      console.log('[N4P] Executing RAISE ' + preset.toUpperCase());
+
+      var btnMap = {
+        min:  this.SELECTORS.MIN_BUTTON,
+        half: this.SELECTORS.HALF_BUTTON,
+        pot:  this.SELECTORS.POT_BUTTON,
+        max:  this.SELECTORS.MAX_BUTTON
+      };
+
+      var btn = this.findFirstClickable(btnMap[preset]);
+      if (!btn) {
+        console.log('[N4P] ✗ Preset button not found: ' + preset);
+        return;
+      }
+
+      btn.click();
+      console.log('[N4P] ✓ Clicked ' + preset.toUpperCase() + ' button');
+
+      setTimeout(function() {
+        if (this.clickWithFallback(this.SELECTORS.CONFIRM_BUTTON, ['raise', 'bet'])) {
+          console.log('[N4P] ✓ RAISE ' + preset.toUpperCase() + ' EXECUTED');
+        } else {
+          console.log('[N4P] ✗ CONFIRM button not found');
+        }
+      }.bind(this), 200);
+    }.bind(this));
+  },
+
+  executeConfirm: function() {
+    this.withLock(function() {
+      console.log('[N4P] Executing CONFIRM');
+      if (this.clickWithFallback(this.SELECTORS.CONFIRM_BUTTON, ['raise', 'bet'])) {
+        console.log('[N4P] ✓ CONFIRM EXECUTED');
+      } else {
+        console.log('[N4P] ✗ CONFIRM button not found');
+      }
+    }.bind(this));
+  },
+
+  executeCashout: function() {
+    this.withLock(function() {
+      console.log('[N4P] Executing CASHOUT');
+      var cashoutBtn = this.findFirstClickable(this.SELECTORS.CASHOUT_BUTTON);
+      if (!cashoutBtn) {
+        var allButtons = document.querySelectorAll('button, .control-b-view-p');
+        for (var i = 0; i < allButtons.length; i++) {
+          if (!this.isClickable(allButtons[i])) continue;
+          var text = allButtons[i].textContent.toLowerCase();
+          if (text.includes('cash') && !text.includes('cashier')) {
+            cashoutBtn = allButtons[i];
+            console.log('[N4P] ✓ Found CASHOUT via text search');
+            break;
+          }
+        }
+      }
+      if (cashoutBtn) {
+        cashoutBtn.click();
+        console.log('[N4P] ✓ CASHOUT EXECUTED');
+      } else {
+        console.log('[N4P] ✗ CASHOUT button not found');
+      }
+    }.bind(this));
+  },
+
+  // ── Pre-action polling ─────────────────────────────────────────────────────
+
+  checkPreAction: function() {
+    if (!this._preAction) return;
+
+    var checkCallLi = this.findFirstVisible(this.SELECTORS.CHECK_BUTTON);
+    var foldLi      = this.findFirstVisible(this.SELECTORS.FOLD_BUTTON);
+    if (!checkCallLi && !foldLi) return;
+
+    var btnText = checkCallLi ? checkCallLi.innerText.toLowerCase().trim() : '';
+
+    switch (this._preAction) {
+      case 'check_fold':
+        if (btnText.includes('check')) {
+          this.executeNow('check');
+        } else if (foldLi) {
+          this.executeNow('fold');
+        }
+        this._preAction = null;
+        break;
+
+      case 'check_only':
+        if (btnText.includes('check')) {
+          this.executeNow('check');
+          this._preAction = null;
+        }
+        break;
+
+      case 'call_any':
+        if (btnText.includes('call') || btnText.includes('check')) {
+          this.executeNow(btnText.includes('check') ? 'check' : 'call');
+          this._preAction = null;
+        }
+        break;
+
+      case 'fold_any':
+        if (foldLi) {
+          this.executeNow('fold');
+          this._preAction = null;
+        }
+        break;
+    }
+  },
+
+  // ── Snapshot builder ───────────────────────────────────────────────────────
+
+  buildSnapshot: function() {
+    var containers = document.querySelectorAll('.player-mini-container-p');
+    if (containers.length === 0) return null;
+
+    var tableIdMatch = location.href.match(/tbl\/(\d+)/);
+    var tableId = tableIdMatch ? tableIdMatch[1] : null;
+    if (!tableId) return null;
+
+    var seats = [], heroSeat = null, communityCards = [];
+
+    var allCardEls = document.querySelectorAll('.single-cart-view-p');
+    for (var i = 0; i < allCardEls.length; i++) {
+      var el = allCardEls[i];
+      if (!el.closest('.player-mini-container-p')) {
+        var m = el.className.match(/icon-layer2_([shdc])(10|[akqjt2-9])_p-c-d/i);
+        if (m) communityCards.push(m[1].toLowerCase() + m[2].toLowerCase());
+      }
+    }
+
+    for (var i = 0; i < containers.length; i++) {
+      var cont = containers[i];
+      var isSelfPlayer = cont.classList.contains('selfplayer') || cont.classList.contains('self-player');
+      var nameEl  = cont.querySelector('p.single-win-item-sizes');
+      var name    = nameEl ? nameEl.textContent.trim() : null;
+      var stackEl = cont.querySelector('.player-text-info-p span b');
+      var stack   = stackEl ? parseFloat(stackEl.textContent.replace(/[^0-9.]/g, '')) : 0;
+
+      var hole = [];
+      if (isSelfPlayer) {
+        var heroCardEls = cont.querySelectorAll('.single-cart-view-p');
+        for (var j = 0; j < heroCardEls.length; j++) {
+          var m2 = heroCardEls[j].className.match(/icon-layer2_([shdc])(10|[akqjt2-9])_p-c-d/i);
+          if (m2) hole.push(m2[1].toLowerCase() + m2[2].toLowerCase());
+        }
+      }
+
+      var seatObj = {
+        seat_index:     i,
+        name:           name,
+        stack_zar:      stack,
+        hole_cards:     hole,
+        cards_count:    hole.length,
+        cards_visible:  hole.length > 0,
+        is_hero:     isSelfPlayer,
+        is_dealer:      false,
+        status:         cont.classList.contains('seat-out-v') ? 'sitting_out' : 'playing'
+      };
+      seats.push(seatObj);
+      if (isSelfPlayer) heroSeat = seatObj;
+    }
+
+    var dealerMatch = document.querySelector('.dealer-icon-view');
+    var dealerSeat  = dealerMatch
+      ? parseInt((dealerMatch.className.match(/position-(\d+)/) || [])[1])
+      : null;
+
+    var foldBtn      = this.findFirstVisible(this.SELECTORS.FOLD_BUTTON);
+    var checkCallBtn = this.findFirstVisible(this.SELECTORS.CALL_BUTTON);
+    var confirmBtn   = this.findFirstVisible(this.SELECTORS.CONFIRM_BUTTON);
+    var potEl        = document.querySelector('.pot-w-view-p');
+    var pot          = potEl ? parseFloat(potEl.textContent.replace(/[^0-9.]/g, '')) : 0;
+
+    var actions  = [];
+    var btnText2 = checkCallBtn ? checkCallBtn.textContent.toLowerCase() : '';
+
+    if (foldBtn) actions.push({ action: 'fold', amount: 0 });
+
+    if (checkCallBtn) {
+      if (btnText2.includes('check')) {
+        actions.push({ action: 'check', amount: 0 });
+      } else if (btnText2.includes('call')) {
+        actions.push({ action: 'call', amount: parseFloat(btnText2.replace(/[^0-9.]/g, '')) || 0 });
+      }
+    }
+
+    var raiseInput = this.findFirstVisible(this.SELECTORS.RAISE_INPUT);
+    var raiseData  = null;
+
+    if (raiseInput && confirmBtn) {
+      var currentVal = parseFloat(raiseInput.value.replace(/[^0-9.]/g, '')) || 0;
+      raiseData = { current: currentVal };
+      actions.push({ action: 'raise', amount: currentVal });
+    }
+
+    var self2 = this;
+    var preSelects = {};
+    Object.keys(this.PRE_SELECT_LABELS).forEach(function(key) {
+      var inp = self2.findPreSelectInput(self2.PRE_SELECT_LABELS[key]);
+      preSelects[key] = inp ? inp.checked : false;
+    });
+
+    return {
+      payload_id:    'snap-' + Date.now(),
+      session_id:    this._sessionId,
+      machine_id:    'browser',
+      client_id:     'tm_client',
+      table_id:      tableId,
+      deal_id:       communityCards.slice(0, 3).join(''),
+      timestamp_utc: new Date().toISOString(),
+      variant:       'plo5-6max',
+      street:        communityCards.length >= 3 ? 'FLOP' : 'PREFLOP',
+      table_size:    seats.length,
+      dealer_seat:   dealerSeat,
+      pot_zar:       pot,
+      seats:         seats,
+      board:         { flop: communityCards.slice(0,3), turn: communityCards[3]||null, river: communityCards[4]||null },
+      actions:       actions,
+      raise_input:   raiseData,
+      pre_selects:   preSelects,
+      action_buttons: {
+        visible:  !!foldBtn || !!checkCallBtn,
+        fold:     !!foldBtn,
+        check:    !!(checkCallBtn && checkCallBtn.textContent.toLowerCase().includes('check')),
+        call:     !!(checkCallBtn && checkCallBtn.textContent.toLowerCase().includes('call')),
+        call_amt: null
+      },
+      player_name: heroSeat ? heroSeat.name  : '',
+      stack_zar:   heroSeat ? heroSeat.stack_zar : 0,
+      hole_cards:  heroSeat ? heroSeat.hole_cards : [],
+      flop:        communityCards.slice(0, 3),
+      turn:        communityCards[3] || null,
+      river:       communityCards[4] || null
+    };
+  },
+
+  // ── Snapshot gate + send ───────────────────────────────────────────────────
+
+  isReady: function(snap) {
+    if (!snap.hole_cards || snap.hole_cards.length < 4) return { ready: false };
+    var key = snap.hole_cards.join('') + '/' + snap.flop.join('') + (snap.turn||'') + (snap.river||'');
+    if (key === this._lastSampleKey) return { ready: false };
+    return { ready: true, sampleKey: key };
+  },
+
+  sendSnapshot: function(snap) {
+    var self = this;
+    fetch(this.API_BASE + '/snapshot', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': this.TRACKER_KEY },
+      body:    JSON.stringify(snap)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok && data.table_id && data.seat_no !== undefined) {
+        // Store table_id and seat_no for command routing
+        self._tableId = data.table_id;
+        self._seatNo = data.seat_no;
+        console.log('[N4P] Registered: table=' + data.table_id + ' seat=' + data.seat_no);
+
+        // Store player name
+        if (data.player_name) {
+          self._playerName = data.player_name;
+          sessionStorage.setItem('n4p_player_name', self._playerName);
+        }
+
+        // Start polling if not already started
+        if (!self._commandTimer) {
+          self.startCommandPolling();
+        }
+      }
+    });
+  },
+
+  // ── Command polling ────────────────────────────────────────────────────────
+
+  startCommandPolling: function() {
+    if (this._commandTimer) return;
+    if (!this._tableId || this._seatNo === null) {
+      console.log('[N4P] ✗ Cannot start polling: missing table_id or seat_no');
+      return;
+    }
+    var self = this;
+    console.log('[N4P] Starting command polling for table=' + this._tableId + ' seat=' + this._seatNo);
+    this._commandTimer = setInterval(function() {
+      if (!self._tableId || self._seatNo === null) return; // Safety check
+      fetch(self.API_BASE + '/commands/pending?table_id=' + self._tableId + '&seat_no=' + self._seatNo)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.command) {
+            self.handleCommand(data.command);
+            fetch(self.API_BASE + '/commands/ack', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({
+                table_id: self._tableId,
+                seat_no: self._seatNo,
+                command_id: data.command.id
+              })
+            });
+          }
+        })
+        .catch(function(e) {
+          console.log('[N4P] Polling error:', e.message);
+        });
+    }, this.CMD_POLL_MS);
+  },
+
+  // ── Utility ────────────────────────────────────────────────────────────────
+
+  isVisible: function(el) {
+    if (!el) return false;
+    var s = window.getComputedStyle(el);
+    return s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0' && el.offsetParent !== null;
+  },
+
+  isClickable: function(el) {
+    if (!el || !this.isVisible(el)) return false;
+    if (el.disabled) return false;
+    return window.getComputedStyle(el).pointerEvents !== 'none';
+  },
+
+  findFirstVisible: function(selectors) {
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el && this.isVisible(el)) return el;
+    }
+    return null;
+  },
+
+  findFirstClickable: function(selectors) {
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (this.isClickable(el)) return el;
+    }
+    return null;
+  },
+
+  clickWithFallback: function(selectors, keywords) {
+    var el = this.findFirstClickable(selectors);
+    if (el) { el.click(); return true; }
+    if (keywords) {
+      el = this.findButtonByText(keywords);
+      if (el && this.isClickable(el)) {
+        el.click();
+        return true;
+      }
+    }
+    return false;
+  },
+
+  withLock: function(action) {
+    if (this._executionLock) { console.log('[N4P] ✗ Execution locked'); return; }
+    this._executionLock = true;
+    try { action(); } finally {
+      setTimeout(function() { N4P._executionLock = false; }, 500);
+    }
+  },
+
+  findButtonByText: function(keywords) {
+    var buttons = document.querySelectorAll('button, .control-b-view-p, li > p, li > div > p');
+    for (var i = 0; i < buttons.length; i++) {
+      if (!this.isVisible(buttons[i])) continue;
+      var text = buttons[i].textContent.toLowerCase().trim();
+      for (var j = 0; j < keywords.length; j++) {
+        if (text.includes(keywords[j].toLowerCase())) return buttons[i];
+      }
+    }
+    return null;
+  },
+
+  // ── Manual control overlay ─────────────────────────────────────────────────
+
+  injectManualControls: function() {
+    if (document.getElementById('n4p-manual-controls')) return;
+
+    var container = document.createElement('div');
+    container.id = 'n4p-manual-controls';
+    container.style.cssText = [
+      'position:fixed', 'top:10px', 'right:10px', 'z-index:99999',
+      'display:flex', 'flex-direction:column', 'gap:4px', 'pointer-events:none'
+    ].join(';');
+
+    var self = this;
+
+    function makeBtn(label, bg, color, fn) {
+      var b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = 'padding:5px 10px;background:' + bg + ';color:' + color
+        + ';border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:11px'
+        + ';box-shadow:0 2px 4px rgba(0,0,0,0.3);pointer-events:auto;';
+      b.onclick = fn;
+      return b;
+    }
+
+    function makeToggle(label, cmdKey) {
+      var wrap = document.createElement('label');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:11px'
+        + ';color:#fff;pointer-events:auto;cursor:pointer;'
+        + 'background:rgba(0,0,0,0.55);padding:3px 7px;border-radius:4px;';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.style.cursor = 'pointer';
+      cb.onchange = function() {
+        if (cb.checked) {
+          container.querySelectorAll('input[type="checkbox"]').forEach(function(o) {
+            if (o !== cb) o.checked = false;
+          });
+          self.handleCommand({ type: cmdKey });
+        } else {
+          self.clearAllPreSelects();
+        }
+      };
+      wrap.appendChild(cb);
+      wrap.appendChild(document.createTextNode(label));
+      return wrap;
+    }
+
+    // Row 1 — action buttons
+    var row1 = document.createElement('div');
+    row1.style.cssText = 'display:flex;gap:4px;pointer-events:none;';
+    row1.appendChild(makeBtn('FOLD',  'rgba(244,67,54,0.85)',  '#fff', function() { self.executeNow('fold');  }));
+    row1.appendChild(makeBtn('CHECK', 'rgba(76,175,80,0.85)',  '#fff', function() { self.executeNow('check'); }));
+    row1.appendChild(makeBtn('CALL',  'rgba(33,150,243,0.85)', '#fff', function() { self.executeNow('call');  }));
+    row1.appendChild(makeBtn('MIN',   'rgba(100,100,100,0.85)','#fff', function() { self.executeRaisePreset('min'); }));
+    row1.appendChild(makeBtn('POT',   'rgba(255,152,0,0.85)',  '#fff', function() { self.executeRaisePreset('pot'); }));
+    row1.appendChild(makeBtn('MAX',   'rgba(255,100,0,0.85)',  '#fff', function() { self.executeRaisePreset('max'); }));
+    row1.appendChild(makeBtn('OUT',   'rgba(255,193,7,0.85)',  '#000', function() { self.executeCashout();    }));
+    container.appendChild(row1);
+
+    // Row 2 — pre-select toggles
+    var row2 = document.createElement('div');
+    row2.style.cssText = 'display:flex;flex-direction:column;gap:2px;pointer-events:none;';
+    row2.appendChild(makeToggle('Check/Fold',    'check_fold'));
+    row2.appendChild(makeToggle('Check only',    'check_only'));
+    row2.appendChild(makeToggle('Call Any/Check','call_any'));
+    row2.appendChild(makeToggle('Fold any bet',  'fold_any'));
+    row2.appendChild(makeToggle('Sit out hand',  'sit_out'));
+    row2.appendChild(makeToggle('Sit out BB',    'sit_out_bb'));
+    container.appendChild(row2);
+
+    // document.body.appendChild(container); // DISABLED - UI is on remote only
+    console.log('[N4P] Manual controls injected');
+  }
+};
+
+// ── Bootstrap ──────────────────────────────────────────────────────────────────
+
+(function main() {
+  console.log('%c[N4P] Remote table control v1.2 loaded', 'color:#00d4aa;font-weight:bold');
+
+  N4P.injectManualControls();
+
+  setInterval(function() {
+    var snap = N4P.buildSnapshot();
+    if (!snap) return;
+
+    var gate = N4P.isReady(snap);
+    if (gate.ready) {
+      N4P.sendSnapshot(snap);
+      N4P._lastSampleKey = gate.sampleKey;
+    }
+
+    N4P.checkPreAction();
+  }, N4P.POLL_MS);
+})();

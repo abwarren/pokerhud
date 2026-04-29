@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GoldRush PLO Equity Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #d4af37;
+    }
+    textarea {
+      width: 100%;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #d4af37;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #b8941f;
+    }
+    #results {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 5px;
+    }
+    .status {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #e8f4f8;
+      border-left: 4px solid #2196F3;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏆 GoldRush PLO Equity Calculator</h1>
+  <div class="status">
+    <strong>Platform:</strong> GoldRush  
+    <strong>Status:</strong> <span id="status">Initializing...</span>
+  </div>
+  
+  <textarea id="equity-input" rows="15" cols="60" 
+            placeholder="Waiting for GoldRush table data...&#10;&#10;Format:&#10;Hero hole cards&#10;Board cards&#10;Opponent cards (if known)"></textarea>
+  <br>
+  <button id="run-btn">Run Equity Calculation</button>
+  <div id="results"></div>
+  
+  <!-- GoldRush-specific scripts -->
+  <script defer src="/static/goldrush-poller.js"></script>
+  <script defer src="/static/n4p_goldrush.js"></script>
+  
+  <script>
+    // Update status when scripts load
+    setTimeout(() => {
+      const status = document.getElementById('status');
+      if (window.__goldrushPoller) {
+        status.textContent = 'Connected';
+        status.style.color = 'green';
+      } else {
+        status.textContent = 'Script not loaded';
+        status.style.color = 'red';
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

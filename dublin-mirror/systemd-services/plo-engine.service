@@ -1,0 +1,15 @@
+[Unit]
+Description=PLO Equity Engine (port 5050)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/plo-engine-backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/plo-engine-backend/venv/bin/gunicorn -w 1 --threads 8 --bind 127.0.0.1:5050 --timeout 300 app:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

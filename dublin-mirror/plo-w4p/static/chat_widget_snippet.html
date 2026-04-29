@@ -1,0 +1,362 @@
+<!--
+    CLAUDE BOT MANAGER - Chat Widget Integration Snippet
+    Add this snippet to your existing index.html (before </body>)
+-->
+
+<style>
+    /* Chat Widget Styles */
+    #claude-chat-widget {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #chat-button {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+    }
+
+    #chat-button:hover {
+        transform: scale(1.05);
+    }
+
+    #chat-button svg {
+        width: 30px;
+        height: 30px;
+        fill: white;
+    }
+
+    #chat-window {
+        display: none;
+        position: fixed;
+        bottom: 90px;
+        right: 20px;
+        width: 400px;
+        height: 600px;
+        background: #1a1a2e;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        flex-direction: column;
+        overflow: hidden;
+        animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    #chat-window.active { display: flex; }
+
+    .chat-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chat-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .chat-header .subtitle {
+        font-size: 12px;
+        opacity: 0.9;
+        margin-top: 4px;
+    }
+
+    .close-chat {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 18px;
+    }
+
+    #chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #16213e;
+    }
+
+    .message {
+        margin-bottom: 16px;
+        animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user { text-align: right; }
+    .message.assistant { text-align: left; }
+
+    .message-bubble {
+        display: inline-block;
+        max-width: 80%;
+        padding: 8px 12px; max-height: 40px;
+        border-radius: 16px;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+    }
+
+    .message.user .message-bubble {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant .message-bubble {
+        background: #0f3460;
+        color: #e8e8e8;
+        border-bottom-left-radius: 4px;
+    }
+
+    .typing-indicator {
+        display: none;
+        padding: 8px 12px; max-height: 40px;
+        background: #0f3460;
+        border-radius: 16px;
+        max-width: 60px;
+        margin-bottom: 16px;
+    }
+
+    .typing-indicator.active { display: inline-block; }
+
+    .typing-indicator span {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #667eea;
+        margin: 0 2px;
+        animation: typing 1.4s infinite;
+    }
+
+    @keyframes typing {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.7; }
+        30% { transform: translateY(-10px); opacity: 1; }
+    }
+
+    .chat-input-container {
+        padding: 16px;
+        background: #1a1a2e;
+        border-top: 1px solid #2d2d44;
+        display: flex;
+        gap: 8px;
+    }
+
+    #chat-input {
+        flex: 1;
+        background: #0f3460;
+        border: 1px solid #2d2d44;
+        border-radius: 24px;
+        padding: 8px 12px; max-height: 40px;
+        color: white;
+        font-size: 14px;
+        outline: none;
+    }
+
+    #chat-input:focus {
+        border-color: #667eea;
+    }
+
+    #send-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 8px;
+        padding: 0 20px 16px;
+        overflow-x: auto;
+    }
+
+    .quick-action-btn {
+        background: #0f3460;
+        border: 1px solid #2d2d44;
+        color: #e8e8e8;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+        background: #667eea;
+        border-color: #667eea;
+    }
+</style>
+
+<!-- Chat Widget HTML -->
+<div id="claude-chat-widget">
+    <button id="chat-button">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+        </svg>
+    </button>
+
+    <div id="chat-window">
+        <div class="chat-header">
+            <div>
+                <h3>🤖 Claude Bot Manager</h3>
+                <div class="subtitle">Deploy 1-9 bots • Powered by Claude</div>
+            </div>
+            <button class="close-chat">×</button>
+        </div>
+
+        <div class="quick-actions">
+            <button class="quick-action-btn" data-action="Show all bot status">📊 Status</button>
+            <button class="quick-action-btn" data-action="Deploy bots">🚀 Deploy</button>
+            <button class="quick-action-btn" data-action="View bot logs">📋 Logs</button>
+            <button class="quick-action-btn" data-action="Help with bot deployment">❓ Help</button>
+        </div>
+
+        <div id="chat-messages">
+            <div class="message assistant">
+                <div class="message-bubble">
+👋 Welcome to Claude Bot Manager!
+
+I can help you deploy and manage 1-9 poker bots:
+
+• 🚀 Deploy bots to any table (MIN buy-in)
+• 🎮 Bots are PASSIVE - YOU control them
+• ⚠️ First hand: bot can CHECK/CALL only
+• 🎯 After first hand: full remote control
+• 📊 Check bot status & health
+• 📋 View logs and activity
+
+How can I help you today?
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator">
+            <span></span><span></span><span></span>
+        </div>
+
+        <div class="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Ask me to deploy bots..." />
+            <button id="send-button">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const API_BASE = '/api'; // Uses same server
+    const conversationId = 'user_' + Date.now();
+
+    const chatButton = document.getElementById('chat-button');
+    const chatWindow = document.getElementById('chat-window');
+    const closeChat = document.querySelector('.close-chat');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendButton = document.getElementById('send-button');
+    const typingIndicator = document.querySelector('.typing-indicator');
+
+    chatButton.addEventListener('click', () => {
+        chatWindow.classList.add('active');
+        chatInput.focus();
+    });
+
+    closeChat.addEventListener('click', () => {
+        chatWindow.classList.remove('active');
+    });
+
+    document.querySelectorAll('.quick-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            sendMessage(btn.getAttribute('data-action'));
+        });
+    });
+
+    function sendMessage(text = null) {
+        const message = text || chatInput.value.trim();
+        if (!message) return;
+
+        if (!text) chatInput.value = '';
+        addMessage(message, 'user');
+        typingIndicator.classList.add('active');
+        scrollToBottom();
+        sendButton.disabled = true;
+        chatInput.disabled = true;
+
+        fetch(`${API_BASE}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                conversation_id: conversationId
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            typingIndicator.classList.remove('active');
+            sendButton.disabled = false;
+            chatInput.disabled = false;
+            chatInput.focus();
+            if (data.message) addMessage(data.message, 'assistant');
+            else if (data.error) addMessage('❌ ' + data.error, 'assistant');
+        })
+        .catch(err => {
+            typingIndicator.classList.remove('active');
+            sendButton.disabled = false;
+            chatInput.disabled = false;
+            addMessage('❌ Chat service unavailable', 'assistant');
+        });
+    }
+
+    function addMessage(text, role) {
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        div.innerHTML = `<div class="message-bubble">${text}</div>`;
+        chatMessages.appendChild(div);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    sendButton.addEventListener('click', () => sendMessage());
+})();
+</script>

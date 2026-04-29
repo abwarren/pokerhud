@@ -1,0 +1,275 @@
+// PLO Remote Table Control - Hero-Only Scraper v2.0
+// Loads via: fetch('https://test.potlimitomaha.xyz:8080/n4p.js').then(r=>r.text()).then(eval)
+
+(function() {
+  'use strict';
+
+  // Configuration
+  var API_BASE = "https://test.potlimitomaha.xyz:8080/api";
+  var API_KEY = 'trk_b4e8a6d2c9f3b7e1d4c8f0a2b5e9d3c7f1b4e8a6d2c9f3b7e1d4c8f0a2b5e9';
+  var POLL_MS = 2000;
+  var COMMAND_POLL_MS = 1000;
+
+  // State
+  var _sessionId = generateSessionId();
+  var _seatToken = sessionStorage.getItem('n4p_seat_token') || null;
+  var _commandTimer = null;
+  var _lastStateHash = null;
+
+  console.log('[N4P] Hero-Only Remote Control v2.0 loaded');
+  console.log('[N4P] Session ID:', _sessionId);
+
+  function generateSessionId() {
+    return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  function getTableId() {
+    var match = location.href.match(/\/tbl\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  // Build hero-only state
+  function buildHeroState() {
+    var tableId = getTableId();
+    if (!tableId) return null;
+
+    // Find hero container
+    var heroContainer = document.querySelector('.player-mini-container-p.self-player');
+    if (!heroContainer) {
+      return {
+        hero_detected: false,
+        hero_seat: null,
+        hero_cards: [],
+        board_cards: [],
+        street: "waiting",
+        seated: false,
+        in_hand: false,
+        can_act: false,
+        allowed_actions: [],
+        waiting_for_big_blind: false,
+        table_id: tableId,
+        pot: null
+      };
+    }
+
+    // Extract hero seat
+    var posMatch = heroContainer.className.match(/position-(\d+)/);
+    var heroSeat = posMatch ? parseInt(posMatch[1]) : null;
+
+    // Extract hero cards
+    var heroCards = [];
+    var heroCardEls = heroContainer.querySelectorAll('.single-cart-view-p');
+    for (var i = 0; i < heroCardEls.length; i++) {
+      var cardEl = heroCardEls[i];
+      var cardMatch = cardEl.className.match(/icon-layer2_([shdc])(10|[akqjt2-9])_p-c-d/i);
+      if (cardMatch) {
+        var suit = cardMatch[1].toLowerCase();
+        var rank = cardMatch[2].toLowerCase();
+        heroCards.push(rank + suit);
+      }
+    }
+
+    // Extract board cards (community cards only)
+    var boardCards = [];
+    var allCards = document.querySelectorAll('.single-cart-view-p');
+    for (var i = 0; i < allCards.length; i++) {
+      var card = allCards[i];
+      // Skip cards inside player containers
+      var isPlayerCard = false;
+      var parent = card.parentElement;
+      while (parent) {
+        if (parent.classList && parent.classList.contains('player-mini-container-p')) {
+          isPlayerCard = true;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      if (!isPlayerCard) {
+        var cardMatch = card.className.match(/icon-layer2_([shdc])(10|[akqjt2-9])_p-c-d/i);
+        if (cardMatch) {
+          var suit = cardMatch[1].toLowerCase();
+          var rank = cardMatch[2].toLowerCase();
+          boardCards.push(rank + suit);
+        }
+      }
+    }
+
+    // Determine street
+    var street = "preflop";
+    if (boardCards.length >= 3) street = "flop";
+    if (boardCards.length >= 4) street = "turn";
+    if (boardCards.length >= 5) street = "river";
+
+    // Extract pot
+    var potEl = document.querySelector('.pot-w-view-p');
+    var pot = null;
+    if (potEl) {
+      var potMatch = potEl.innerText.match(/([\d.,]+)/);
+      pot = potMatch ? parseFloat(potMatch[1].replace(',', '')) : null;
+    }
+
+    // Check action buttons
+    var foldBtn = document.querySelector('.control-b-view-p.fold-c');
+    var checkBtn = document.querySelector('.control-b-view-p.check-c');
+    var callBtn = document.querySelector('.control-b-view-p.call-c');
+    var raiseBtn = document.querySelector('.control-b-view-p.raise-c');
+    var cashoutBtn = document.querySelector('.control-b-view-p.cashout-c');
+
+    var canAct = !!(foldBtn || checkBtn || callBtn || raiseBtn);
+    var allowedActions = [];
+    if (foldBtn) allowedActions.push('fold');
+    if (checkBtn) allowedActions.push('check');
+    if (callBtn) allowedActions.push('call');
+    if (raiseBtn) allowedActions.push('raise');
+    if (cashoutBtn) allowedActions.push('cashout');
+    // Allin is always available when can_act
+    if (canAct) allowedActions.push('allin');
+
+    // Check if sitting out
+    var isSittingOut = heroContainer.classList.contains('seat-out-v');
+
+    return {
+      hero_detected: true,
+      hero_seat: heroSeat,
+      hero_cards: heroCards,
+      board_cards: boardCards,
+      street: street,
+      seated: true,
+      in_hand: heroCards.length === 4,
+      can_act: canAct,
+      allowed_actions: allowedActions,
+      waiting_for_big_blind: isSittingOut,
+      table_id: tableId,
+      pot: pot
+    };
+  }
+
+  // Check if state changed (for dedup)
+  function stateChanged(state) {
+    if (!state) return false;
+    var hash = JSON.stringify({
+      hero_cards: state.hero_cards,
+      board_cards: state.board_cards,
+      can_act: state.can_act
+    });
+    if (hash === _lastStateHash) return false;
+    _lastStateHash = hash;
+    return true;
+  }
+
+  // Execute action
+  function executeAction(action) {
+    console.log('[N4P] Executing:', action);
+
+    var selector = null;
+    if (action === 'fold') selector = '.control-b-view-p.fold-c';
+    else if (action === 'check') selector = '.control-b-view-p.check-c';
+    else if (action === 'call') selector = '.control-b-view-p.call-c';
+    else if (action === 'raise') selector = '.control-b-view-p.raise-c';
+    else if (action === 'cashout') selector = '.control-b-view-p.cashout-c';
+    else if (action === 'allin') {
+      // All-in requires max raise
+      var raiseBtn = document.querySelector('.control-b-view-p.raise-c');
+      if (raiseBtn) {
+        raiseBtn.click();
+        // Wait for raise dialog, then click max
+        setTimeout(function() {
+          var maxBtn = document.querySelector('.raise-max-button'); // TODO: verify selector
+          if (maxBtn) maxBtn.click();
+        }, 500);
+      }
+      return;
+    }
+
+    if (selector) {
+      var btn = document.querySelector(selector);
+      if (btn) {
+        btn.click();
+        console.log('[N4P] ✓ Clicked:', action);
+      } else {
+        console.log('[N4P] Button not found:', action);
+      }
+    }
+  }
+
+  // Poll for commands
+  function startCommandPolling() {
+    if (_commandTimer) return;
+
+    console.log('[N4P] Starting command polling');
+
+    _commandTimer = setInterval(function() {
+      if (!_seatToken) return;
+
+      fetch(API_BASE + '/commands/pending?token=' + _seatToken)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.command) {
+            executeAction(data.command.type);
+
+            // Acknowledge
+            fetch(API_BASE + '/commands/ack', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                token: _seatToken,
+                command_id: data.command.id
+              })
+            });
+          }
+        })
+        .catch(function(err) {
+          console.log('[N4P] Command poll error:', err);
+        });
+    }, COMMAND_POLL_MS);
+  }
+
+  // Main loop
+  setInterval(function() {
+    var state = buildHeroState();
+    if (!state) return;
+
+    console.log('[N4P] Hero State:',
+      'detected=' + state.hero_detected,
+      'seat=' + state.hero_seat,
+      'cards=' + state.hero_cards.length,
+      'board=' + state.board_cards.length,
+      'can_act=' + state.can_act
+    );
+
+    // Send state if changed
+    if (state.hero_detected && stateChanged(state)) {
+      console.log('[N4P] State changed, sending snapshot...');
+
+      fetch(API_BASE + '/snapshot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY
+        },
+        body: JSON.stringify(state)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          if (!_seatToken && data.seat_token) {
+            _seatToken = data.seat_token;
+            sessionStorage.setItem('n4p_seat_token', _seatToken);
+            console.log('[N4P] ✓ Token received');
+            startCommandPolling();
+          }
+          console.log('[N4P] ✓ Snapshot sent');
+        } else {
+          console.log('[N4P] Snapshot rejected:', data.error);
+        }
+      })
+      .catch(function(err) {
+        console.log('[N4P] Network error:', err);
+      });
+    }
+
+  }, POLL_MS);
+
+  console.log('[N4P] Polling started (hero-only mode)');
+})();
+window._n4p_injected = true;

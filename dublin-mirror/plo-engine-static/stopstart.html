@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windows Instances — nuts4poker.com</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: #0a0e17;
+    color: #c8d6e5;
+    min-height: 100vh;
+  }
+
+  /* ── Login ── */
+  #login-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh;
+  }
+  #login-box {
+    background: #121826; border: 1px solid #1e2a3a; border-radius: 12px;
+    padding: 40px; width: 360px;
+  }
+  #login-box h2 { color: #00d4ff; margin-bottom: 24px; font-size: 18px; }
+  #login-box input {
+    width: 100%; padding: 10px 14px; margin-bottom: 12px;
+    background: #0a0e17; border: 1px solid #1e2a3a; border-radius: 6px;
+    color: #c8d6e5; font-family: inherit; font-size: 14px;
+  }
+  #login-box input:focus { outline: none; border-color: #00d4ff; }
+  #login-box button {
+    width: 100%; padding: 10px; background: #00d4ff; color: #0a0e17;
+    border: none; border-radius: 6px; font-family: inherit; font-weight: 700;
+    font-size: 14px; cursor: pointer;
+  }
+  #login-box button:hover { background: #00b8d9; }
+  #login-error { color: #ff6b6b; font-size: 12px; margin-top: 8px; display: none; }
+
+  /* ── Main ── */
+  #app { display: none; padding: 24px; max-width: 900px; margin: 0 auto; }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #1e2a3a;
+  }
+  header h1 { font-size: 20px; color: #00d4ff; }
+  #logout-btn {
+    background: none; border: 1px solid #1e2a3a; color: #8892a4;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px;
+  }
+  #logout-btn:hover { border-color: #ff6b6b; color: #ff6b6b; }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
+  }
+  .btn {
+    padding: 8px 20px; border: none; border-radius: 6px;
+    font-family: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-start { background: #00b894; color: #fff; }
+  .btn-start:hover:not(:disabled) { background: #00a381; }
+  .btn-stop { background: #e74c3c; color: #fff; }
+  .btn-stop:hover:not(:disabled) { background: #c0392b; }
+  .btn-refresh { background: #1e2a3a; color: #00d4ff; }
+  .btn-refresh:hover { background: #253447; }
+  .btn-select { background: #1e2a3a; color: #8892a4; font-size: 12px; padding: 6px 12px; }
+  .btn-select:hover { color: #c8d6e5; }
+  .selected-count { color: #8892a4; font-size: 12px; margin-left: 8px; }
+
+  /* ── Grid ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: #121826; border: 2px solid #1e2a3a; border-radius: 10px;
+    padding: 16px; cursor: pointer; transition: all 0.15s; position: relative;
+  }
+  .card:hover { border-color: #2a3a4f; }
+  .card.selected { border-color: #00d4ff; background: #0d1520; }
+  .card .name { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .card .state {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .state-running { background: rgba(0,184,148,0.15); color: #00b894; }
+  .state-stopped { background: rgba(231,76,60,0.15); color: #e74c3c; }
+  .state-stopping { background: rgba(253,203,110,0.15); color: #fdcb6e; }
+  .state-pending { background: rgba(0,212,255,0.15); color: #00d4ff; }
+  .card .ip { color: #8892a4; font-size: 11px; margin-top: 8px; }
+  .card .type { color: #576175; font-size: 10px; margin-top: 4px; }
+  .card .check {
+    position: absolute; top: 12px; right: 12px; width: 20px; height: 20px;
+    border: 2px solid #1e2a3a; border-radius: 4px; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .card.selected .check { border-color: #00d4ff; background: #00d4ff; }
+  .card.selected .check::after { content: '\2713'; color: #0a0e17; font-size: 13px; font-weight: 700; }
+
+  /* ── Status bar ── */
+  .status-bar {
+    margin-top: 20px; padding: 12px 16px; background: #121826;
+    border: 1px solid #1e2a3a; border-radius: 8px; font-size: 12px; color: #8892a4;
+    min-height: 40px;
+  }
+  .status-bar.success { border-color: #00b894; color: #00b894; }
+  .status-bar.error { border-color: #e74c3c; color: #e74c3c; }
+  .status-bar.working { border-color: #fdcb6e; color: #fdcb6e; }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid #1e2a3a; border-top-color: #00d4ff;
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login-screen">
+  <div id="login-box">
+    <h2>Windows Instance Manager</h2>
+    <input type="text" id="username" placeholder="Username" autofocus>
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="doLogin()">Sign In</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <header>
+    <h1>Windows Instances</h1>
+    <button id="logout-btn" onclick="doLogout()">Logout</button>
+  </header>
+
+  <div class="controls">
+    <button class="btn btn-start" id="btn-start" onclick="doAction('start')" disabled>Start Selected</button>
+    <button class="btn btn-stop" id="btn-stop" onclick="doAction('stop')" disabled>Stop Selected</button>
+    <button class="btn btn-refresh" onclick="refresh()">Refresh</button>
+    <button class="btn btn-select" onclick="selectAll()">Select All</button>
+    <button class="btn btn-select" onclick="selectNone()">Deselect All</button>
+    <span class="selected-count" id="sel-count"></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="status-bar" id="status">Loading...</div>
+</div>
+
+<script>
+const API = '/api';
+const API_KEY = 'n4p-windows-mgmt-2026';
+let instances = {};
+let selected = new Set();
+let loggedIn = localStorage.getItem('ss_loggedin') === 'true';
+
+function apiHeaders() {
+  return {'Content-Type': 'application/json', 'X-API-Key': API_KEY};
+}
+
+// ── Auth (uses engine login on port 5055) ──
+async function doLogin() {
+  const u = document.getElementById('username').value;
+  const p = document.getElementById('password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  try {
+    const r = await fetch(`${API}/login`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p}),
+      credentials: 'include'
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) { throw new Error(data.error || 'Invalid credentials'); }
+    loggedIn = true;
+    localStorage.setItem('ss_loggedin', 'true');
+    showApp();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function doLogout() {
+  await fetch(`${API}/logout`, {method: 'POST', credentials: 'include'}).catch(()=>{});
+  loggedIn = false;
+  localStorage.removeItem('ss_loggedin');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+async function checkAuth() {
+  if (loggedIn) {
+    // Verify session still valid via engine auth
+    try {
+      const r = await fetch(`${API}/auth/verify`, {credentials: 'include'});
+      if (r.ok) { showApp(); return; }
+    } catch(e) {}
+  }
+  loggedIn = false;
+  localStorage.removeItem('ss_loggedin');
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  refresh();
+}
+
+// ── Password enter key ──
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('username').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('password').focus();
+});
+
+// ── Instance Management ──
+async function refresh() {
+  setStatus('working', '<span class="spinner"></span> Fetching status...');
+  try {
+    const r = await fetch(`${API}/windows/status`, {headers: {'X-API-Key': API_KEY}, credentials: 'include'});
+    if (r.status === 401) { doLogout(); return; }
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    instances = data.instances;
+    render();
+    const running = Object.values(instances).filter(i => i.state === 'running').length;
+    const stopped = Object.values(instances).filter(i => i.state === 'stopped').length;
+    setStatus('success', `${running} running, ${stopped} stopped — updated ${new Date().toLocaleTimeString()}`);
+  } catch(e) {
+    setStatus('error', `Error: ${e.message}`);
+  }
+}
+
+async function doAction(action) {
+  if (selected.size === 0) return;
+  const targets = Array.from(selected);
+  const names = targets.map(t => `Windows-${t}`).join(', ');
+  const verb = action === 'start' ? 'Starting' : 'Stopping';
+
+  setBusy(true);
+  setStatus('working', `<span class="spinner"></span> ${verb} ${names}...`);
+
+  try {
+    const r = await fetch(`${API}/windows/${action}`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({targets}),
+      credentials: 'include'
+    });
+    if (r.status === 401) { doLogout(); return; }
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    setStatus('success', `${verb.replace('ing','ed')} ${names}. Refreshing...`);
+    // Poll for state changes
+    await pollUntilStable(targets, action === 'start' ? 'running' : 'stopped');
+  } catch(e) {
+    setStatus('error', `Error: ${e.message}`);
+  }
+  setBusy(false);
+}
+
+async function pollUntilStable(targets, desiredState) {
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const r = await fetch(`${API}/windows/status`, {headers: {'X-API-Key': API_KEY}, credentials: 'include'});
+      const data = await r.json();
+      if (!data.ok) continue;
+      instances = data.instances;
+      render();
+      const allDone = targets.every(t => instances[t] && instances[t].state === desiredState);
+      if (allDone) {
+        const running = Object.values(instances).filter(i => i.state === 'running').length;
+        const stopped = Object.values(instances).filter(i => i.state === 'stopped').length;
+        setStatus('success', `Done. ${running} running, ${stopped} stopped — ${new Date().toLocaleTimeString()}`);
+        return;
+      }
+      setStatus('working', `<span class="spinner"></span> Waiting for ${desiredState}... (${i+1}/30)`);
+    } catch(e) {}
+  }
+  setStatus('error', 'Timeout waiting for state change. Hit Refresh.');
+}
+
+// ── Rendering ──
+function render() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (const [num, inst] of Object.entries(instances)) {
+    const card = document.createElement('div');
+    card.className = 'card' + (selected.has(num) ? ' selected' : '');
+    card.onclick = () => toggleSelect(num);
+    card.innerHTML = `
+      <div class="check"></div>
+      <div class="name">${inst.name}</div>
+      <span class="state state-${inst.state}">${inst.state}</span>
+      <div class="ip">${inst.ip || 'No public IP'}</div>
+      <div class="type">${inst.type} &middot; ${inst.id.slice(0,10)}...</div>
+    `;
+    grid.appendChild(card);
+  }
+  updateControls();
+}
+
+function toggleSelect(num) {
+  if (selected.has(num)) selected.delete(num);
+  else selected.add(num);
+  render();
+}
+
+function selectAll() {
+  Object.keys(instances).forEach(k => selected.add(k));
+  render();
+}
+
+function selectNone() {
+  selected.clear();
+  render();
+}
+
+function updateControls() {
+  const n = selected.size;
+  document.getElementById('sel-count').textContent = n > 0 ? `${n} selected` : '';
+  document.getElementById('btn-start').disabled = n === 0;
+  document.getElementById('btn-stop').disabled = n === 0;
+}
+
+function setBusy(busy) {
+  document.getElementById('btn-start').disabled = busy;
+  document.getElementById('btn-stop').disabled = busy;
+}
+
+function setStatus(cls, html) {
+  const el = document.getElementById('status');
+  el.className = 'status-bar ' + cls;
+  el.innerHTML = html;
+}
+
+// ── Init ──
+checkAuth();
+</script>
+</body>
+</html>

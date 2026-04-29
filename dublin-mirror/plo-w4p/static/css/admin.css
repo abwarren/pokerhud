@@ -1,0 +1,99 @@
+/* Admin-specific styles */
+
+/* Data Table Enhancements */
+.data-table {
+  margin-top: 16px;
+}
+
+.data-table tbody tr {
+  transition: background 0.15s;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(74, 158, 255, 0.08);
+}
+
+/* Level Badges */
+.level-info {
+  color: var(--accent-info);
+}
+
+.level-warn {
+  color: var(--accent-warning);
+}
+
+.level-error {
+  color: var(--accent-error);
+}
+
+/* Status Icons */
+.status-success {
+  color: var(--accent-success);
+}
+
+.status-warning {
+  color: var(--accent-warning);
+}
+
+.status-error {
+  color: var(--accent-error);
+}
+
+.status-denied {
+  color: var(--text-tertiary);
+}
+
+/* Admin Section Visibility */
+.admin-only {
+  display: none;
+}
+
+body[data-role="admin"] .admin-only {
+  display: block;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-state-message {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Loading State */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--accent-primary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Summary Grid Enhancements */
+.summary-card.positive .summary-value {
+  color: var(--accent-success);
+}
+
+.summary-card.negative .summary-value {
+  color: var(--accent-error);
+}
+
+.summary-card.neutral .summary-value {
+  color: var(--accent-info);
+}

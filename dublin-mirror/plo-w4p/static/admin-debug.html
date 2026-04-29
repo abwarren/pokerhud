@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Debug Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #1a1a1a;
+      color: #0f0;
+      padding: 20px;
+      font-size: 13px;
+    }
+
+    .header {
+      background: #000;
+      padding: 15px;
+      border: 2px solid #0f0;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 1.8em;
+      letter-spacing: 3px;
+      color: #0f0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-box {
+      background: #000;
+      border: 1px solid #0f0;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #0ff;
+    }
+
+    .stat-label {
+      font-size: 0.9em;
+      color: #0f0;
+      margin-top: 5px;
+    }
+
+    .section {
+      background: #000;
+      border: 2px solid #0f0;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 1.3em;
+      color: #0ff;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #0f0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border: 1px solid #0f0;
+    }
+
+    th {
+      background: #003300;
+      color: #0ff;
+      font-weight: bold;
+    }
+
+    tr:nth-child(even) {
+      background: #0a0a0a;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+    }
+
+    .status-live {
+      background: #0f0;
+      box-shadow: 0 0 10px #0f0;
+    }
+
+    .status-stale {
+      background: #f00;
+      box-shadow: 0 0 10px #f00;
+    }
+
+    .status-unknown {
+      background: #666;
+    }
+
+    .alert {
+      background: #330000;
+      border: 1px solid #f00;
+      padding: 10px;
+      margin-bottom: 10px;
+      color: #f00;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .timestamp {
+      color: #888;
+      font-size: 0.9em;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 0.85em;
+      margin: 2px;
+    }
+
+    .badge-pending {
+      background: #ff9800;
+      color: #000;
+    }
+
+    .badge-stale {
+      background: #f44336;
+      color: #fff;
+    }
+
+    .badge-active {
+      background: #4caf50;
+      color: #000;
+    }
+
+    .refresh-info {
+      text-align: center;
+      padding: 10px;
+      color: #666;
+      font-size: 0.9em;
+    }
+
+    .error-item {
+      background: #1a0000;
+      border-left: 3px solid #f00;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .error-time {
+      color: #888;
+      font-size: 0.85em;
+    }
+
+    .error-text {
+      color: #f00;
+      margin-top: 5px;
+    }
+
+    .command-item {
+      background: #1a1a00;
+      border-left: 3px solid #ff0;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .mono {
+      font-family: 'Courier New', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>⚙️ ADMIN DEBUG DASHBOARD</h1>
+    <div class="timestamp" id="last-refresh">Loading...</div>
+  </div>
+
+  <div class="stats-grid" id="stats-grid">
+    <!-- Stats will be populated here -->
+  </div>
+
+  <div class="section">
+    <div class="section-title">🔴 STALE BOTS (No heartbeat > 2s)</div>
+    <div id="stale-bots">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📸 LATEST SNAPSHOTS</div>
+    <div id="snapshots">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">⚡ PENDING COMMANDS</div>
+    <div id="commands">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">❌ VALIDATION ERRORS (Last 20)</div>
+    <div id="validation-errors">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🃏 ACTIVE TABLES</div>
+    <div id="tables">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">💓 ALL HEARTBEATS</div>
+    <div id="heartbeats">
+      <div class="empty-state">Loading...</div>
+    </div>
+  </div>
+
+  <div class="refresh-info">
+    Auto-refreshing every 1 second
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+
+    function formatTimeAgo(seconds) {
+      if (seconds === null || seconds === undefined) return 'never';
+      if (seconds < 1) return 'just now';
+      if (seconds < 60) return `${Math.floor(seconds)}s ago`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      return `${hours}h ${minutes % 60}m ago`;
+    }
+
+    function formatTimestamp(ts) {
+      if (!ts) return '-';
+      return new Date(ts * 1000).toLocaleTimeString();
+    }
+
+    function renderStats(stats) {
+      const html = `
+        <div class="stat-box">
+          <div class="stat-value">${stats.total_seats}</div>
+          <div class="stat-label">Total Seats</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">${stats.pending_commands}</div>
+          <div class="stat-label">Pending Commands</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">${stats.stale_bots}</div>
+          <div class="stat-label">Stale Bots</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">${stats.active_tables}</div>
+          <div class="stat-label">Active Tables</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value">${stats.heartbeat_threshold}s</div>
+          <div class="stat-label">Stale Threshold</div>
+        </div>
+      `;
+      document.getElementById('stats-grid').innerHTML = html;
+    }
+
+    function renderStaleBots(bots) {
+      if (bots.length === 0) {
+        document.getElementById('stale-bots').innerHTML =
+          '<div class="empty-state">✅ No stale bots</div>';
+        return;
+      }
+
+      let html = '<table><tr><th>Bot ID</th><th>Status</th><th>Last Seen</th></tr>';
+      for (const bot of bots) {
+        html += `
+          <tr>
+            <td><span class="status-dot status-stale"></span>${bot.bot_id}</td>
+            <td><span class="badge badge-stale">${bot.status}</span></td>
+            <td>${formatTimeAgo(bot.last_seen_ago)}</td>
+          </tr>
+        `;
+      }
+      html += '</table>';
+      document.getElementById('stale-bots').innerHTML = html;
+    }
+
+    function renderSnapshots(snapshots) {
+      if (snapshots.length === 0) {
+        document.getElementById('snapshots').innerHTML =
+          '<div class="empty-state">No snapshots received</div>';
+        return;
+      }
+
+      let html = '<table><tr><th>Status</th><th>Table ID</th><th>Seat</th><th>Bot ID</th><th>Stack</th><th>Last Seen</th></tr>';
+      for (const snap of snapshots.slice(0, 20)) {
+        const dotClass = snap.is_stale ? 'status-stale' : 'status-live';
+        html += `
+          <tr>
+            <td><span class="status-dot ${dotClass}"></span></td>
+            <td class="mono">${snap.table_id}</td>
+            <td>${snap.seat_index}</td>
+            <td class="mono">${snap.bot_id}</td>
+            <td>R${snap.stack_zar || 0}</td>
+            <td>${formatTimeAgo(snap.last_seen_ago)} (${formatTimestamp(snap.last_seen)})</td>
+          </tr>
+        `;
+      }
+      html += '</table>';
+      document.getElementById('snapshots').innerHTML = html;
+    }
+
+    function renderCommands(commands) {
+      if (commands.length === 0) {
+        document.getElementById('commands').innerHTML =
+          '<div class="empty-state">No pending commands</div>';
+        return;
+      }
+
+      let html = '';
+      for (const cmd of commands) {
+        html += `
+          <div class="command-item">
+            <strong>Command:</strong> ${cmd.type}
+            <span class="badge badge-pending">PENDING</span><br>
+            <strong>ID:</strong> ${cmd.command_id}<br>
+            ${cmd.seat ? `<strong>Seat:</strong> ${cmd.seat.table_id}:${cmd.seat.seat_index}<br>` : ''}
+            <strong>Queued:</strong> ${formatTimeAgo(cmd.age)} (${formatTimestamp(cmd.queued_at)})
+          </div>
+        `;
+      }
+      document.getElementById('commands').innerHTML = html;
+    }
+
+    function renderValidationErrors(errors) {
+      if (errors.length === 0) {
+        document.getElementById('validation-errors').innerHTML =
+          '<div class="empty-state">✅ No validation errors</div>';
+        return;
+      }
+
+      let html = '';
+      for (const err of errors.slice().reverse()) {
+        const errList = err.errors.slice(0, 3).join(', ');
+        html += `
+          <div class="error-item">
+            <div class="error-time">${err.timestamp}</div>
+            <div class="error-text">${errList}</div>
+            <div class="timestamp">Table: ${err.payload_preview.table_id} | Seats: ${err.payload_preview.seats_count}</div>
+          </div>
+        `;
+      }
+      document.getElementById('validation-errors').innerHTML = html;
+    }
+
+    function renderTables(tables) {
+      if (tables.length === 0) {
+        document.getElementById('tables').innerHTML =
+          '<div class="empty-state">No active tables</div>';
+        return;
+      }
+
+      let html = '<table><tr><th>Status</th><th>Table ID</th><th>Seats</th><th>Street</th><th>Pot</th><th>Last Updated</th></tr>';
+      for (const table of tables) {
+        const dotClass = table.is_stale ? 'status-stale' : 'status-live';
+        html += `
+          <tr>
+            <td><span class="status-dot ${dotClass}"></span></td>
+            <td class="mono">${table.table_id}</td>
+            <td>${table.seat_count}</td>
+            <td>${table.street}</td>
+            <td>R${table.pot_zar || 0}</td>
+            <td>${formatTimeAgo(table.age)}</td>
+          </tr>
+        `;
+      }
+      html += '</table>';
+      document.getElementById('tables').innerHTML = html;
+    }
+
+    function renderHeartbeats(heartbeats) {
+      const entries = Object.entries(heartbeats);
+      if (entries.length === 0) {
+        document.getElementById('heartbeats').innerHTML =
+          '<div class="empty-state">No heartbeats tracked</div>';
+        return;
+      }
+
+      let html = '<table><tr><th>Bot ID</th><th>Status</th><th>Last Seen</th></tr>';
+      for (const [bot_id, status] of entries) {
+        const dotClass = status.stale ? 'status-stale' : 'status-live';
+        const badgeClass = status.stale ? 'badge-stale' : 'badge-active';
+        html += `
+          <tr>
+            <td><span class="status-dot ${dotClass}"></span>${bot_id}</td>
+            <td><span class="badge ${badgeClass}">${status.status}</span></td>
+            <td>${formatTimeAgo(status.last_seen_ago)}</td>
+          </tr>
+        `;
+      }
+      html += '</table>';
+      document.getElementById('heartbeats').innerHTML = html;
+    }
+
+    async function fetchDebugData() {
+      try {
+        const response = await fetch(`${API_BASE}/admin/debug`);
+        const data = await response.json();
+
+        if (!data.ok) {
+          console.error('Failed to fetch debug data');
+          return;
+        }
+
+        document.getElementById('last-refresh').textContent =
+          `Last refresh: ${new Date().toLocaleTimeString()}`;
+
+        renderStats(data.stats);
+        renderStaleBots(data.stale_bots);
+        renderSnapshots(data.snapshots);
+        renderCommands(data.commands);
+        renderValidationErrors(data.validation_errors);
+        renderTables(data.tables);
+        renderHeartbeats(data.heartbeats);
+
+      } catch (error) {
+        console.error('Error fetching debug data:', error);
+      }
+    }
+
+    // Initial fetch
+    fetchDebugData();
+
+    // Auto-refresh every 1 second
+    setInterval(fetchDebugData, 1000);
+  </script>
+</body>
+</html>

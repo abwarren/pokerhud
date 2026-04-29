@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N4P Remote Table Control</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .header {
+      background: #ffffff;
+      border: 2px solid #e0e0e0;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .header h1 {
+      font-size: 2em;
+      letter-spacing: 2px;
+      color: #1a1a1a;
+    }
+
+    .test-badge {
+      background: #ff6b35;
+      padding: 8px 16px;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 0.9em;
+      color: #ffffff;
+    }
+
+    .table-container {
+      background: #ffffff;
+      border: 2px solid #e0e0e0;
+      padding: 30px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .table-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .board-display {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 20px;
+      background: #f9f9f9;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+    }
+
+    /* 4-color deck: Hearts=Red, Diamonds=Blue, Clubs=Green, Spades=Black */
+    .card {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      width: 62px;
+      height: 88px;
+      border-radius: 8px;
+      font-weight: 900;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      margin: 0 3px;
+      line-height: 1;
+    }
+    .card .rank {
+      font-size: 1.9em;
+      letter-spacing: -1px;
+    }
+    .card .suit {
+      font-size: 2.2em;
+      margin-top: -2px;
+    }
+
+    .card.hearts { background: #dc143c; }    /* Red */
+    .card.diamonds { background: #0066ff; }  /* Blue */
+    .card.clubs { background: #228b22; }     /* Green */
+    .card.spades { background: #1a1a2e; }    /* Dark navy-black */
+
+    .hole-card {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      width: 44px;
+      height: 62px;
+      border-radius: 5px;
+      font-weight: 900;
+      text-align: center;
+      margin: 0 2px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      line-height: 1;
+    }
+    .hole-card .rank {
+      font-size: 1.25em;
+      letter-spacing: -1px;
+    }
+    .hole-card .suit {
+      font-size: 1.5em;
+      margin-top: -2px;
+    }
+
+    .hole-card.hearts { background: #dc143c; }
+    .hole-card.diamonds { background: #0066ff; }
+    .hole-card.clubs { background: #228b22; }
+    .hole-card.spades { background: #1a1a2e; }
+
+    .seats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    @media (max-width: 1200px) {
+      .seats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .seats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Seat card states */
+    .seat-card {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 12px;
+      border: 3px solid #e0e0e0;
+      transition: all 0.3s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .seat-card.connected {
+      border-color: #4caf50;
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+
+    .seat-card.empty {
+      opacity: 0.5;
+      background: #fafafa;
+    }
+
+    .seat-card.stale {
+      border-color: #ff5722;
+      opacity: 0.7;
+      background: #fff3e0;
+    }
+
+    .seat-card.action-on {
+      border-color: #ffc107;
+      animation: blink-border 1s infinite;
+    }
+
+    @keyframes blink-border {
+      0%, 100% {
+        border-color: #ffc107;
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+      }
+      50% {
+        border-color: #ff5722;
+        box-shadow: 0 0 40px rgba(255, 87, 34, 0.5);
+      }
+    }
+
+    .seat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .seat-title {
+      font-size: 0.95em;
+      font-weight: bold;
+      color: #1a1a1a;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-left: 6px;
+    }
+
+    .status-dot.live {
+      background: #4caf50;
+      box-shadow: 0 0 8px #4caf50;
+    }
+
+    .status-dot.offline {
+      background: #666;
+    }
+
+    .dealer-marker {
+      background: #ffc107;
+      color: #000;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.7em;
+      font-weight: bold;
+    }
+
+    .seat-info {
+      margin-bottom: 8px;
+      font-size: 0.85em;
+    }
+
+    .seat-info div {
+      margin: 3px 0;
+    }
+
+    .hole-cards {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    /* Pre-action controls */
+    .pre-actions {
+      margin: 6px 0;
+      padding: 6px;
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+
+    .pre-action-item {
+      display: flex;
+      align-items: center;
+      margin: 3px 0;
+    }
+
+    .pre-action-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin-right: 6px;
+      cursor: pointer;
+    }
+
+    .pre-action-item label {
+      cursor: pointer;
+      font-size: 0.75em;
+      color: #1a1a1a;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .action-btn {
+      padding: 6px 4px;
+      border: 2px solid transparent;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.7em;
+      color: #ffffff;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      filter: brightness(1.1);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      filter: grayscale(50%);
+    }
+
+    .btn-fold { background: #f44336; color: white; }
+    .btn-check { background: #4caf50; color: white; }
+    .btn-call { background: #2196f3; color: white; }
+    .btn-raise { background: #ff5722; color: white; }
+    .btn-cashout { background: #ffc107; color: #000; }
+
+    .pending-badge {
+      background: #ff6b35;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      display: inline-block;
+      margin-top: 10px;
+    }
+
+    /* Additional seat controls */
+    .wait-bb-control {
+      padding: 5px 10px;
+      background: #2a2a2a;
+      border-radius: 4px;
+      margin-top: 5px;
+    }
+
+    .wait-bb-control label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .rebuy-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-top: 10px;
+      padding: 10px;
+      background: #1a1a1a;
+      border-radius: 4px;
+    }
+
+    .btn-rebuy-max,
+    .btn-rebuy-min,
+    .btn-rebuy-custom {
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-rebuy-max { background: #ff8800; color: white; }
+    .btn-rebuy-min { background: #0088ff; color: white; }
+    .btn-rebuy-custom { background: #00aa44; color: white; white-space: nowrap; }
+
+    .btn-rebuy-max:hover,
+    .btn-rebuy-min:hover,
+    .btn-rebuy-custom:hover {
+      opacity: 0.8;
+    }
+
+    /* Command log */
+    .command-log {
+      background: #ffffff;
+      border: 2px solid #e0e0e0;
+      padding: 20px;
+      border-radius: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .command-log h3 {
+      margin-bottom: 15px;
+      color: #1a1a1a;
+    }
+
+    .log-entry {
+      padding: 8px;
+      margin: 5px 0;
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 5px;
+      font-size: 0.9em;
+      display: flex;
+      justify-content: space-between;
+      color: #1a1a1a;
+    }
+
+    /* ASCII Card Display */
+    .ascii-card-container {
+      background: #ffffff;
+      border: 2px solid #4caf50;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(76, 175, 80, 0.2);
+    }
+
+    .ascii-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .ascii-card-header h3 {
+      margin: 0;
+      color: #1a1a1a;
+    }
+
+    .ascii-card-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-ascii-card {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.9em;
+    }
+
+    .btn-ascii-card.btn-copy {
+      background: #4caf50;
+      color: white;
+    }
+
+    .btn-ascii-card.btn-clear-ascii {
+      background: #ff5722;
+      color: white;
+    }
+
+    .btn-ascii-card:hover {
+      opacity: 0.8;
+      transform: translateY(-1px);
+    }
+
+    #ascii-card-textarea {
+      width: 100%;
+      min-height: 120px;
+      max-height: 180px;
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 1em;
+      background: #f9f9f9;
+      border: 2px solid #e0e0e0;
+      border-radius: 5px;
+      resize: vertical;
+      color: #1a1a1a;
+      line-height: 1.4;
+    }
+
+    /* Hand log */
+    .hand-log-container {
+      background: #ffffff;
+      border: 2px solid #e0e0e0;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .hand-log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .hand-log-header h3 {
+      margin: 0;
+    }
+
+    .hand-log-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-hand-log {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-copy { background: #4caf50; color: white; }
+    .btn-clear-log { background: #f44336; color: white; }
+
+    .btn-hand-log:hover {
+      opacity: 0.8;
+      transform: translateY(-1px);
+    }
+
+    #hand-log-textarea {
+      width: 100%;
+      height: 300px;
+      background: #1a1a1a;
+      color: #0f0;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      padding: 15px;
+      border: 2px solid #333;
+      border-radius: 5px;
+      resize: vertical;
+      overflow-y: scroll;
+      white-space: pre;
+      overflow-wrap: normal;
+    }
+
+    /* Equity results panel */
+    .equity-panel {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .equity-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .equity-header h3 {
+      margin: 0;
+      color: #4caf50;
+    }
+
+    .equity-status {
+      font-size: 0.9em;
+      padding: 5px 12px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+
+    .equity-status.idle { background: #555; }
+    .equity-status.processing { background: #ff9800; }
+    .equity-status.ready { background: #4caf50; }
+    .equity-status.error { background: #f44336; }
+
+    .equity-results {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 15px;
+    }
+
+    .equity-metric {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .equity-metric-label {
+      font-size: 0.8em;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .equity-metric-value {
+      font-size: 1.8em;
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .equity-metric.price { border-left: 4px solid #ff9800; }
+    .equity-metric.rev-buy { border-left: 4px solid #2196f3; }
+    .equity-metric.disparity { border-left: 4px solid #9c27b0; }
+    .equity-metric.rvsprice { border-left: 4px solid #4caf50; }
+    .equity-metric.hit-rate { border-left: 4px solid #00bcd4; }
+
+    .pot-display {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #ff6b00;
+    }
+
+    .street-display {
+      background: #f0f0f0;
+      border: 2px solid #d0d0d0;
+      padding: 8px 16px;
+      border-radius: 5px;
+      display: inline-block;
+      color: #1a1a1a;
+      font-weight: bold;
+    }
+
+    h2, h3 {
+      color: #1a1a1a;
+    }
+
+    .table-info h2 {
+      color: #1a1a1a;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>N4P // REMOTE TABLE CONTROL</h1>
+    </div>
+    <div class="test-badge">TEST</div>
+  </div>
+
+  <!-- ASCII CARD DISPLAY -->
+  <div class="ascii-card-container">
+    <div class="ascii-card-header">
+      <h3>ASCII CARDS (Copy-Paste Ready)</h3>
+      <div class="ascii-card-buttons">
+        <button class="btn-ascii-card btn-copy" onclick="copyAsciiCards()">COPY</button>
+        <button class="btn-ascii-card btn-clear-ascii" onclick="clearAsciiCards()">CLEAR</button>
+      </div>
+    </div>
+    <textarea id="ascii-card-textarea" readonly placeholder="Hole cards + board will appear here..."></textarea>
+  </div>
+
+  <!-- HAND LOG (ABOVE TABLE) -->
+  <div class="hand-log-container">
+    <div class="hand-log-header">
+      <h3>RAW HAND LOG</h3>
+      <div class="hand-log-buttons">
+        <button class="btn-hand-log btn-copy" onclick="copyHandLog()">COPY</button>
+        <button class="btn-hand-log btn-clear-log" onclick="clearHandLog()">CLEAR</button>
+      </div>
+    </div>
+    <textarea id="hand-log-textarea" readonly></textarea>
+  </div>
+
+  <div id="app"></div>
+
+  <!-- EQUITY RESULTS PANEL -->
+  <div class="equity-panel" id="equity-panel" style="display: none;">
+    <div class="equity-header">
+      <h3>⚡ LIVE EQUITY ANALYSIS</h3>
+      <span class="equity-status idle" id="equity-status">IDLE</span>
+    </div>
+    <div class="equity-results" id="equity-results">
+      <div class="equity-metric price">
+        <div class="equity-metric-label">Price</div>
+        <div class="equity-metric-value" id="equity-und-raw">--</div>
+      </div>
+      <div class="equity-metric rev-buy">
+        <div class="equity-metric-label">Rev Buy Hit %</div>
+        <div class="equity-metric-value" id="equity-und-real">--</div>
+      </div>
+      <div class="equity-metric disparity">
+        <div class="equity-metric-label">Disparity</div>
+        <div class="equity-metric-value" id="equity-disparity">--</div>
+      </div>
+      <div class="equity-metric rvsprice">
+        <div class="equity-metric-label">RVS Price</div>
+        <div class="equity-metric-value" id="equity-fav-raw">--</div>
+      </div>
+      <div class="equity-metric hit-rate">
+        <div class="equity-metric-label">Hit Rate %</div>
+        <div class="equity-metric-value" id="equity-fav-real">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="command-log">
+    <h3>Command Log</h3>
+    <div id="log-container"></div>
+  </div>
+
+  <script>
+    // ========== CONFIGURATION ==========
+    const API_BASE = '/api';
+    const ENGINE_API = 'https://potlimitomaha.xyz/api';
+    const STALENESS_THRESHOLD_SECONDS = 30;
+    const MAX_COMMAND_LOG_ENTRIES = 20;
+
+    // 🔒 Production-grade polling constants
+    const FAST_POLL = 1500;  // Active: 1.5s
+    const SLOW_POLL = 5000;   // Idle: 5s
+    const IDLE_THRESHOLD = 30000; // 30s no change = idle
+    const FETCH_TIMEOUT = 10000; // 10s timeout
+
+    // ========== STATE ==========
+    let commandLog = [];
+    let lastFlopFingerprint = null;
+    let lastStreet = null;
+    let equityProcessing = false;
+
+    // 🔒 Production-grade polling state
+    let currentPollInterval = FAST_POLL;
+    let lastActivityTime = Date.now();
+    let pollTimer = null;
+    let lastSnapshotHash = null;
+    let lastHandLogHash = null;
+    let consecutiveFailures = 0;
+
+    // ========== CARD FORMATTING ==========
+    // Render cards as colored rectangles with white rank text (no symbols)
+    // 4-color deck: Hearts=Red, Diamonds=Blue, Clubs=Green, Spades=Black
+    function formatCardElement(card, isHoleCard = false) {
+      if (!card) return '';
+
+      // Parse card: e.g., "As" = Ace of spades, "Kd" = King of diamonds
+      const suit = card.slice(-1).toLowerCase();
+      let rank = card.slice(0, -1).toUpperCase();
+      const cssClass = isHoleCard ? 'hole-card' : 'card';
+
+      // Normalize rank: convert 'T' to '10', keep others as-is
+      if (rank === 'T') rank = '10';
+
+      // Map suit to CSS class for 4-color deck
+      const suitClasses = {
+        'h': 'hearts',    // Red
+        'd': 'diamonds',  // Blue
+        'c': 'clubs',     // Green
+        's': 'spades'     // Black
+      };
+      const suitClass = suitClasses[suit] || '';
+
+      // Suit symbols for display
+      const suitSymbols = { 'h': '♥', 'd': '♦', 'c': '♣', 's': '♠' };
+      const suitSymbol = suitSymbols[suit] || '';
+
+      // Render as colored card with rank + suit symbol (inverted 4-color)
+      return `<span class="${cssClass} ${suitClass}" title="${card.toUpperCase()}"><span class="rank">${rank}</span><span class="suit">${suitSymbol}</span></span>`;
+    }
+
+    function formatCard(card) {
+      return formatCardElement(card, false);
+    }
+
+    function formatHoleCard(card) {
+      return formatCardElement(card, true);
+    }
+
+    // ========== COMMAND API ==========
+    function sendCommand(tableId, seatIndex, commandType, params = {}) {
+      const payload = {
+        table_id: tableId,
+        seat_index: seatIndex,
+        command_type: commandType,
+        ...params
+      };
+
+      fetch(API_BASE + '/commands/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          addToLog(seatIndex, commandType, 'PENDING');
+        } else {
+          console.error('Command failed:', data.error);
+        }
+      })
+      .catch(err => {
+        console.error('Network error:', err);
+      });
+    }
+
+    // ========== PRE-ACTION CONTROLS ==========
+    function togglePreAction(tableId, seatIndex, action, checked) {
+      if (checked) {
+        // Uncheck the opposite checkbox (mutually exclusive)
+        const oppositeAction = action === 'check_fold' ? 'check_call' : 'check_fold';
+        const oppositeCheckboxId = action === 'check_fold' ? 'cc-' + seatIndex : 'cf-' + seatIndex;
+        const oppositeCheckbox = document.getElementById(oppositeCheckboxId);
+        if (oppositeCheckbox) oppositeCheckbox.checked = false;
+
+        sendCommand(tableId, seatIndex, action);
+      } else {
+        sendCommand(tableId, seatIndex, 'clear_preaction');
+      }
+    }
+
+    // ========== ADDITIONAL SEAT CONTROLS ==========
+    function toggleWaitForBB(tableId, seatIndex) {
+      const checked = document.getElementById(`wait-bb-${seatIndex}`).checked;
+      sendCommand(tableId, seatIndex, 'wait_for_bb', { value: checked });
+    }
+
+    // ========== COMMAND LOG ==========
+    function addToLog(seatIndex, command, status) {
+      const timestamp = new Date().toLocaleTimeString();
+      commandLog.unshift({ timestamp, seat: seatIndex, command, status });
+      commandLog = commandLog.slice(0, MAX_COMMAND_LOG_ENTRIES);
+      updateLog();
+    }
+
+    function updateLog() {
+      const container = document.getElementById('log-container');
+      container.innerHTML = commandLog.map(entry => `
+        <div class="log-entry">
+          <span>${entry.timestamp} | Seat ${entry.seat} | ${entry.command}</span>
+          <span>${entry.status}</span>
+        </div>
+      `).join('');
+    }
+
+    // ========== SEAT STATE LOGIC ==========
+    function getSeatState(seat) {
+      const occupied = !!seat.name;
+      const active = seat.status === 'playing';
+      const pending = !!seat.pending_cmd;
+      const stale = seat.last_seen_ago !== null && seat.last_seen_ago > STALENESS_THRESHOLD_SECONDS;
+
+      return {
+        seatNo: seat.seat_index,
+        name: seat.name,
+        stack: seat.stack_zar || 0,
+        occupied,
+        active,
+        pending,
+        stale,
+        canAct: occupied && active && !stale
+      };
+    }
+
+    function getSeatStatusText(state) {
+      if (!state.occupied) return 'EMPTY';
+      if (state.stale) return 'DISCONNECTED';
+      if (state.pending) return 'PENDING';
+      if (state.active) return 'ACTIVE';
+      return 'OCCUPIED';
+    }
+
+    function getSeatCardClasses(state) {
+      if (!state.occupied) return 'empty';
+      if (state.stale) return 'stale';
+      if (state.active) return 'connected action-on';
+      return 'connected';
+    }
+
+    // ========== TABLE RENDERING ==========
+    function renderTable(table) {
+      const app = document.getElementById('app');
+
+      // Board cards
+      const boardCards = [
+        ...table.board.flop,
+        table.board.turn,
+        table.board.river
+      ].filter(c => c);
+
+      const boardHtml = boardCards.length > 0
+        ? boardCards.map(formatCard).join('')
+        : '<span style="opacity: 0.5;">Waiting for flop...</span>';
+
+      // Render each seat
+      const seatsHtml = table.seats.map(seat => {
+        const state = getSeatState(seat);
+        const statusText = getSeatStatusText(state);
+        const cardClasses = getSeatCardClasses(state);
+        const liveClass = state.occupied ? 'live' : 'offline';
+
+        const holeCardsHtml = (seat.is_self_player || seat.is_hero) && seat.hole_cards && seat.hole_cards.length > 0
+          ? `<div class="hole-cards">${seat.hole_cards.map(formatHoleCard).join('')}</div>`
+          : '';
+
+        const pendingHtml = state.pending
+          ? `<div class="pending-badge">⏳ ${seat.pending_cmd}</div>`
+          : '';
+
+        const disabledAttr = state.canAct ? '' : 'disabled';
+
+        return `
+          <div class="seat-card ${cardClasses}">
+            <div class="seat-header">
+              <div>
+                <span class="seat-title">SEAT ${state.seatNo}</span>
+                <span class="status-dot ${liveClass}"></span>
+              </div>
+              ${seat.is_dealer ? '<span class="dealer-marker">DEALER</span>' : ''}
+            </div>
+            <div class="seat-info">
+              <div><strong>${state.name || 'Empty'}</strong></div>
+              <div>ZAR ${state.stack.toFixed(2)}</div>
+              <div>Status: ${statusText}</div>
+              ${holeCardsHtml}
+              ${pendingHtml}
+            </div>
+            <div class="pre-actions">
+              <div class="pre-action-item">
+                <input type="checkbox" id="cf-${state.seatNo}"
+                   onchange="togglePreAction('${table.table_id}', ${state.seatNo}, 'check_fold', this.checked)"
+                   ${disabledAttr}>
+                <label for="cf-${state.seatNo}">Check/Fold</label>
+              </div>
+              <div class="pre-action-item">
+                <input type="checkbox" id="cc-${state.seatNo}"
+                   onchange="togglePreAction('${table.table_id}', ${state.seatNo}, 'check_call', this.checked)"
+                   ${disabledAttr}>
+                <label for="cc-${state.seatNo}">Check/Call</label>
+              </div>
+            </div>
+            <div class="action-buttons">
+              ${(() => {
+                const aa = seat.available_actions || [];
+                const has = (a) => aa.includes(a);
+                const noActions = aa.length === 0;
+                // If no actions reported yet, show all buttons (disabled by canAct).
+                // If actions reported, only show buttons matching DOM state.
+                return `
+                  ${noActions || has('fold') ? `<button class="action-btn btn-fold" ${noActions ? disabledAttr : ''}
+                    onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'fold')">FOLD</button>` : ''}
+                  ${noActions || has('check') ? `<button class="action-btn btn-check" ${noActions ? disabledAttr : ''}
+                    onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'check')">CHECK</button>` : ''}
+                  ${noActions || has('call') ? `<button class="action-btn btn-call" ${noActions ? disabledAttr : ''}
+                    onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'call')">CALL</button>` : ''}
+                  ${noActions || has('raise') ? `<button class="action-btn btn-raise" ${noActions ? disabledAttr : ''}
+                    onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'raise_max')">RAISE MAX</button>` : ''}
+                  ${has('cashout') ? `<button class="action-btn btn-cashout"
+                    onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'cashout')">CASHOUT</button>` : ''}
+                `;
+              })()}
+            </div>
+
+            ${state.occupied ? `
+            <div class="wait-bb-control">
+              <label>
+                <input type="checkbox" id="wait-bb-${state.seatNo}"
+                  onchange="toggleWaitForBB('${table.table_id}', ${state.seatNo})">
+                Wait for Big Blind
+              </label>
+            </div>
+
+            <div class="rebuy-controls">
+              <button class="btn-rebuy-min"
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'buyin_min')">
+                BUY-IN MIN
+              </button>
+              <button class="btn-rebuy-max"
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'buyin_max')">
+                BUY-IN MAX
+              </button>
+              <label style="display: flex; align-items: center; gap: 5px; padding: 5px 0; cursor: pointer;">
+                <input type="checkbox" id="auto-buyin-${state.seatNo}"
+                  onchange="sendCommand('${table.table_id}', ${state.seatNo}, 'toggle_auto_buyin')">
+                <span style="font-size: 0.8em;">AUTO BUY-IN</span>
+              </label>
+              <button class="btn-rebuy-custom"
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'buyin_confirm')">
+                BUY-IN CONFIRM
+              </button>
+              <button class="btn-rebuy-custom"
+                onclick="sendCommand('${table.table_id}', ${state.seatNo}, 'add_chips')">
+                ADD CHIPS
+              </button>
+            </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      app.innerHTML = `
+        <div class="table-container">
+          <div class="table-info">
+            <div class="street-display">${table.street}</div>
+            <div class="pot-display">POT: ZAR ${table.pot_zar ? table.pot_zar.toFixed(2) : '0.00'}</div>
+          </div>
+          <div class="board-display">
+            ${boardHtml}
+          </div>
+          <div class="seats-grid">
+            ${seatsHtml}
+          </div>
+        </div>
+      `;
+
+      // Update ASCII card display
+      updateAsciiCards(table);
+    }
+
+    function showWaiting() {
+      // Show empty 9-seat table when no players connected
+      const emptyTable = {
+        table_id: "waiting",
+        variant: "plo",
+        street: "WAITING",
+        pot_zar: 0,
+        dealer_seat: null,
+        board: { flop: [], turn: null, river: null },
+        seats: Array.from({ length: 9 }, (_, i) => ({
+          seat_index: i,
+          name: null,
+          stack_zar: 0,
+          hole_cards: [],
+          status: "empty",
+          is_dealer: false,
+          last_seen_ago: null,
+          pending_cmd: null
+        }))
+      };
+      renderTable(emptyTable);
+    }
+
+    // ========== EQUITY ENGINE INTEGRATION ==========
+    function generatePLOCombos(fourCardHand) {
+      if (fourCardHand.length !== 4) return [];
+      const [c1, c2, c3, c4] = fourCardHand;
+      return [
+        c1 + c2,
+        c1 + c3,
+        c1 + c4,
+        c2 + c3,
+        c2 + c4,
+        c3 + c4
+      ];
+    }
+
+    function formatHandForEngine(combo, flop) {
+      return combo + flop.join('');
+    }
+
+    async function fetchHeroHands() {
+      try {
+        const res = await fetch(API_BASE + '/collector/latest');
+        const data = await res.json();
+        if (data.ok && data.hands && data.hands.length > 0) {
+          return data.hands.slice(0, 8); // Max 8 samples
+        }
+      } catch (err) {
+        console.error('Fetch hero hands error:', err);
+      }
+      return [];
+    }
+
+    async function callEquityEngine(hands) {
+      const statusEl = document.getElementById('equity-status');
+      statusEl.textContent = 'PROCESSING';
+      statusEl.className = 'equity-status processing';
+
+      try {
+        const res = await fetch(ENGINE_API + '/matchups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hands })
+        });
+
+        const data = await res.json();
+
+        if (data.ok || data.matchups) {
+          renderEquityResults(data);
+          statusEl.textContent = 'READY';
+          statusEl.className = 'equity-status ready';
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (err) {
+        console.error('Engine API error:', err);
+        statusEl.textContent = 'ERROR';
+        statusEl.className = 'equity-status error';
+      }
+    }
+
+    function renderEquityResults(data) {
+      const panel = document.getElementById('equity-panel');
+      panel.style.display = 'block';
+
+      const matchups = data.matchups || data.results || [];
+      const firstMatchup = matchups[0] || {};
+
+      document.getElementById('equity-und-raw').textContent =
+        firstMatchup.und_raw?.toFixed(2) || '--';
+      document.getElementById('equity-und-real').textContent =
+        firstMatchup.und_real?.toFixed(1) + '%' || '--';
+      document.getElementById('equity-disparity').textContent =
+        firstMatchup.disparity?.toFixed(2) || '--';
+      document.getElementById('equity-fav-raw').textContent =
+        firstMatchup.fav_raw?.toFixed(2) || '--';
+      document.getElementById('equity-fav-real').textContent =
+        firstMatchup.fav_real?.toFixed(1) + '%' || '--';
+    }
+
+    function clearEquityPanel() {
+      const panel = document.getElementById('equity-panel');
+      panel.style.display = 'none';
+      document.getElementById('equity-status').textContent = 'IDLE';
+      document.getElementById('equity-status').className = 'equity-status idle';
+      ['und-raw', 'und-real', 'disparity', 'fav-raw', 'fav-real'].forEach(id => {
+        document.getElementById('equity-' + id).textContent = '--';
+      });
+    }
+
+    async function processFlopEquity(table) {
+      if (equityProcessing) return;
+      equityProcessing = true;
+
+      try {
+        const heroHands = await fetchHeroHands();
+        if (heroHands.length < 6) {
+          console.warn('Not enough hero samples:', heroHands.length);
+          equityProcessing = false;
+          return;
+        }
+
+        const flop = table.board.flop || [];
+        if (flop.length !== 3) {
+          console.warn('Invalid flop:', flop);
+          equityProcessing = false;
+          return;
+        }
+
+        const formattedHands = [];
+        for (const fourCardHand of heroHands) {
+          const cards = [];
+          for (let i = 0; i < fourCardHand.length; i += 2) {
+            cards.push(fourCardHand.substring(i, i + 2));
+          }
+
+          if (cards.length === 4) {
+            const combos = generatePLOCombos(cards);
+            const combo = combos[0];
+            const formatted = formatHandForEngine(combo, flop);
+            formattedHands.push(formatted);
+          }
+        }
+
+        if (formattedHands.length < 6) {
+          console.warn('Not enough formatted hands:', formattedHands.length);
+          equityProcessing = false;
+          return;
+        }
+
+        await callEquityEngine(formattedHands);
+
+      } catch (err) {
+        console.error('Process FLOP equity error:', err);
+      } finally {
+        equityProcessing = false;
+      }
+    }
+
+    // ========== PRODUCTION-GRADE POLLING HELPERS ==========
+    // Logging
+    const log = (level, ...args) => {
+      const ts = new Date().toISOString().substr(11, 12);
+      console.log(`[${ts}][REMOTE][${level}]`, ...args);
+    };
+
+    // Fetch with timeout
+    async function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') throw new Error('Request timeout');
+        throw error;
+      }
+    }
+
+    // Page visibility handling
+    function handleVisibilityChange() {
+      const isVisible = !document.hidden;
+      log('INFO', `Page visibility: ${isVisible ? 'VISIBLE' : 'HIDDEN'}`);
+
+      if (isVisible && pollTimer === null) {
+        log('INFO', 'Resuming polling');
+        scheduleNextPoll();
+      } else if (!isVisible && pollTimer) {
+        log('INFO', 'Pausing polling (page hidden)');
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Record activity (resets idle timer, speeds up polling)
+    function recordActivity() {
+      const wasIdle = currentPollInterval === SLOW_POLL;
+      lastActivityTime = Date.now();
+      consecutiveFailures = 0;
+
+      if (wasIdle) {
+        currentPollInterval = FAST_POLL;
+        log('INFO', `Activity detected, fast mode (${FAST_POLL}ms)`);
+      }
+    }
+
+    // ========== POLLING ==========
+    // Layer 1 + 2: Poll table with hash guard + flop trigger
+    async function pollTable() {
+      try {
+        const res = await fetchWithTimeout(API_BASE + '/table/latest');
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        if (!data.ok || !data.table) {
+          consecutiveFailures++;
+          showWaiting();
+          return;
+        }
+
+        const table = data.table;
+
+        // Build snapshot hash (excluding timestamps)
+        const snapshot = Object.assign({}, table);
+        delete snapshot.last_updated;
+        delete snapshot.state_version;
+        (snapshot.seats || []).forEach(s => {
+          delete s.last_seen;
+          delete s.last_seen_ago;
+        });
+        const snapshotHash = JSON.stringify(snapshot);
+
+        // Layer 1: Hash guard - skip if unchanged
+        if (snapshotHash === lastSnapshotHash) {
+          log('DEBUG', 'Snapshot unchanged, skipping render');
+          return;
+        }
+
+        // Activity detected
+        log('INFO', 'Snapshot changed, updating table');
+        recordActivity();
+        lastSnapshotHash = snapshotHash;
+        consecutiveFailures = 0;
+
+        renderTable(table);
+
+        // Layer 2: FLOP auto-flow trigger
+        const currentStreet = table.street;
+        const flop = table.board?.flop || [];
+
+        const flopFingerprint = flop.length === 3
+          ? `${table.table_id}:${flop.join('')}`
+          : null;
+
+        // Detect FLOP transition (once per hand)
+        if (currentStreet === 'FLOP' && flopFingerprint && flopFingerprint !== lastFlopFingerprint) {
+          console.log('[FLOP TRIGGER] New flop detected:', flopFingerprint);
+          lastFlopFingerprint = flopFingerprint;
+          lastStreet = 'FLOP';
+          processFlopEquity(table);
+        }
+
+        // Detect RIVER transition (reset equity state)
+        if (currentStreet === 'RIVER' && lastStreet !== 'RIVER') {
+          console.log('[RIVER RESET] Clearing equity state');
+          lastStreet = 'RIVER';
+          lastFlopFingerprint = null;
+          clearEquityPanel();
+        }
+
+        // Detect new hand (PREFLOP after RIVER)
+        if (currentStreet === 'PREFLOP' && lastStreet === 'RIVER') {
+          console.log('[NEW HAND] Reset for next hand');
+          lastStreet = 'PREFLOP';
+          lastFlopFingerprint = null;
+        }
+
+        // Track other street changes
+        if (currentStreet !== lastStreet && currentStreet !== 'FLOP' && currentStreet !== 'RIVER') {
+          lastStreet = currentStreet;
+        }
+
+      } catch (error) {
+        consecutiveFailures++;
+        log('ERROR', `Poll error (${consecutiveFailures}):`, error.message);
+        showWaiting();
+      }
+    }
+
+    // ========== HAND LOG ==========
+    // Layer 1: Poll hand log with hash guard
+    async function pollHandLog() {
+      try {
+        const res = await fetchWithTimeout(API_BASE + '/hands/recent?limit=20');
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        if (!data.ok || !data.hands) return;
+
+        const handLogHash = JSON.stringify(data.hands);
+
+        // Hash guard - skip if unchanged
+        if (handLogHash === lastHandLogHash) {
+          return;
+        }
+
+        lastHandLogHash = handLogHash;
+
+        const textarea = document.getElementById('hand-log-textarea');
+        if (textarea) {
+          const newContent = data.hands.join('\n');
+          if (textarea.value !== newContent) {
+            textarea.value = newContent;
+            textarea.scrollTop = textarea.scrollHeight;
+          }
+        }
+
+      } catch (error) {
+        log('WARN', 'Hand log poll error:', error.message);
+      }
+    }
+
+    function copyHandLog() {
+      const textarea = document.getElementById('hand-log-textarea');
+      textarea.select();
+      document.execCommand('copy');
+
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => {
+        btn.textContent = originalText;
+      }, 1000);
+    }
+
+    function clearHandLog() {
+      if (!confirm('Clear all hand history?')) {
+        return;
+      }
+
+      fetch(API_BASE + '/hands/clear-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          document.getElementById('hand-log-textarea').value = '';
+        }
+      })
+      .catch(err => {
+        console.error('Clear hand log error:', err);
+      });
+    }
+
+    // ========== ASCII CARD DISPLAY ==========
+    let lastBoardSize = 0;  // Track board size to detect river
+
+    function updateAsciiCards(tableState) {
+      const textarea = document.getElementById('ascii-card-textarea');
+      if (!tableState || !tableState.seats) return;
+
+      let asciiText = '';
+
+      // Add all players' hole cards (one per line)
+      tableState.seats.forEach(seat => {
+        if (seat && seat.hole_cards && seat.hole_cards.length > 0) {
+          const holeCardsStr = seat.hole_cards.join('');
+          asciiText += holeCardsStr + '\n';
+        }
+      });
+
+      // Add board cards (if any)
+      if (tableState.board) {
+        const boardCards = [
+          ...tableState.board.flop,
+          tableState.board.turn,
+          tableState.board.river
+        ].filter(c => c);
+
+        if (boardCards.length > 0) {
+          const boardStr = boardCards.join('');
+          asciiText += boardStr;
+        }
+
+        // Auto-clear on river (when board goes from 4 to 5 cards)
+        const currentBoardSize = boardCards.length;
+        if (lastBoardSize === 4 && currentBoardSize === 5) {
+          // River just dealt, schedule auto-clear after 3 seconds
+          setTimeout(() => {
+            clearAsciiCards();
+          }, 3000);
+        }
+        lastBoardSize = currentBoardSize;
+      }
+
+      textarea.value = asciiText;
+    }
+
+    function copyAsciiCards() {
+      const textarea = document.getElementById('ascii-card-textarea');
+      textarea.select();
+      document.execCommand('copy');
+
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => {
+        btn.textContent = originalText;
+      }, 1000);
+    }
+
+    function clearAsciiCards() {
+      document.getElementById('ascii-card-textarea').value = '';
+      lastBoardSize = 0;
+    }
+
+    // Layer 3: Adaptive scheduling
+    function scheduleNextPoll() {
+      if (pollTimer) clearTimeout(pollTimer);
+      if (!navigator.onLine || document.hidden) {
+        log('DEBUG', 'Poll skipped: offline or hidden');
+        return;
+      }
+
+      const timeSinceActivity = Date.now() - lastActivityTime;
+
+      if (timeSinceActivity > IDLE_THRESHOLD && currentPollInterval === FAST_POLL) {
+        currentPollInterval = SLOW_POLL;
+        log('INFO', `Entering idle mode (${SLOW_POLL}ms polling)`);
+      }
+
+      const backoff = consecutiveFailures > 0
+        ? Math.min(currentPollInterval * Math.pow(2, consecutiveFailures - 1), 30000)
+        : currentPollInterval;
+
+      if (consecutiveFailures > 0) {
+        log('WARN', `Backoff: ${backoff}ms (${consecutiveFailures} failures)`);
+      }
+
+      pollTimer = setTimeout(async () => {
+        await pollTable();
+        await pollHandLog();
+        scheduleNextPoll();
+      }, backoff);
+    }
+
+    // ========== INITIALIZATION ==========
+    log('INFO', '🔒 Production-grade polling initialized (with flop trigger)');
+    log('INFO', `Poll mode: FAST=${FAST_POLL}ms, SLOW=${SLOW_POLL}ms, IDLE=${IDLE_THRESHOLD}ms`);
+    showWaiting();
+    scheduleNextPoll();
+  </script>
+</body>
+</html>

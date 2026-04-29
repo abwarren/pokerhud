@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Form Diagnostic Test</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }
+    select { padding: 8px; margin: 10px 0; font-size: 14px; width: 300px; }
+    .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+    .ok { background: #4caf50; }
+    .error { background: #f44336; }
+    pre { background: #2a2a2a; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Get Seated Form Diagnostic</h1>
+  
+  <div id="status"></div>
+  
+  <h2>Test Form</h2>
+  <select id="platform" onchange="testUpdate()">
+    <option value="">Select Platform</option>
+    <option value="PokerBet">PokerBet</option>
+  </select>
+  
+  <select id="variant" disabled>
+    <option value="">Select Variant</option>
+  </select>
+  
+  <h2>Console Log</h2>
+  <pre id="log"></pre>
+  
+  <script>
+    const TABLES = {
+      PokerBet: {
+        PLO4: [
+          {name: "Multan", seats: 9, stakes: "0.1/0.2"},
+          {name: "Davao", seats: 9, stakes: "0.25/0.5"}
+        ]
+      }
+    };
+    
+    let logContent = '';
+    function log(msg) {
+      logContent += msg + '\n';
+      document.getElementById('log').textContent = logContent;
+      console.log(msg);
+    }
+    
+    log('✅ Page loaded');
+    log('✅ TABLES defined: ' + (typeof TABLES !== 'undefined'));
+    log('✅ PokerBet exists: ' + (TABLES.PokerBet !== undefined));
+    log('✅ PLO4 exists: ' + (TABLES.PokerBet && TABLES.PokerBet.PLO4 !== undefined));
+    
+    function testUpdate() {
+      log('\n──────────────────────────');
+      log('testUpdate() called');
+      
+      const platform = document.getElementById('platform').value;
+      log('Platform selected: ' + platform);
+      
+      const variantSelect = document.getElementById('variant');
+      
+      if (!platform) {
+        log('No platform selected');
+        variantSelect.disabled = true;
+        return;
+      }
+      
+      const platformTables = TABLES[platform];
+      log('Platform tables: ' + (platformTables ? Object.keys(platformTables).join(', ') : 'NONE'));
+      
+      if (!platformTables) {
+        log('❌ ERROR: No tables found');
+        document.getElementById('status').innerHTML = '<div class="status error">❌ No tables found for ' + platform + '</div>';
+        return;
+      }
+      
+      // Clear and populate
+      variantSelect.innerHTML = '<option value="">Select Variant</option>';
+      
+      Object.keys(platformTables).forEach(variant => {
+        const option = document.createElement('option');
+        option.value = variant;
+        option.textContent = variant;
+        variantSelect.appendChild(option);
+        log('Added variant: ' + variant);
+      });
+      
+      variantSelect.disabled = false;
+      log('✅ Variant dropdown enabled');
+      
+      document.getElementById('status').innerHTML = '<div class="status ok">✅ Form working! Select "PokerBet" to see variant options.</div>';
+    }
+    
+    log('\n✅ Script loaded successfully');
+    log('Ready to test. Select "PokerBet" from dropdown above.');
+  </script>
+</body>
+</html>

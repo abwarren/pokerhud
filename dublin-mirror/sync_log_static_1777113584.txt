@@ -1,0 +1,27 @@
+receiving incremental file list
+./
+FINALEXT.zip
+adaptive_polling.js
+blm.html
+collector.html
+dashboard.html
+engine-poller-v4-final.js
+engine_flow_controls.js
+engine_flow_controls_goldrush.js
+engine_stress_test_console.js
+index.html
+manifest.json
+n4p-full.js
+n4p.js
+portal.html
+remote-plo.html
+remote-w4p.html
+remote.html
+remotebutton.html
+stopstart.html
+test-new.html
+w4p-full.js
+w4p.js
+
+sent 517 bytes  received 154,752 bytes  34,504.22 bytes/sec
+total size is 744,050  speedup is 4.79

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Debug Test</title>
+<style>
+body { background: #1e3c72; color: white; font-family: Arial; padding: 20px; }
+.seat { border: 2px solid #4caf50; padding: 15px; margin: 10px; background: #2a5298; }
+button { padding: 8px 15px; margin: 5px; background: #4caf50; color: white; border: none; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>DEBUG TEST</h1>
+<div id="app">Loading...</div>
+<script>
+console.log('Script started');
+const app = document.getElementById('app');
+console.log('App div:', app);
+
+// Create 9 seats
+let html = '<h2>9 Seats Test</h2>';
+for (let i = 1; i <= 9; i++) {
+  html += '<div class="seat">' +
+    '<strong>Seat ' + i + ': Player ' + i + '</strong><br>' +
+    'Status: EMPTY<br>' +
+    '<button>FOLD</button>' +
+    '<button>CHECK</button>' +
+    '<button>CALL</button>' +
+    '</div>';
+}
+
+app.innerHTML = html;
+console.log('Rendered', 9, 'seats');
+</script>
+</body>
+</html>

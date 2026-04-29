@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Table Manager</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 28px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        .table-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .table-card.inactive {
+            opacity: 0.6;
+            background: #f5f5f5;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .table-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .game-type-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .game-type-badge.PLO4 {
+            background: #667eea;
+        }
+
+        .game-type-badge.PLO6 {
+            background: #f59e0b;
+        }
+
+        .table-details {
+            margin-bottom: 15px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .detail-value {
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .stakes-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #10b981;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .table-actions button {
+            flex: 1;
+            padding: 8px;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .status-indicator.active {
+            background: #10b981;
+        }
+
+        .status-indicator.inactive {
+            background: #ef4444;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .form-actions button {
+            flex: 1;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 2000;
+            display: none;
+        }
+
+        .toast.show {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .empty-state h2 {
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .tables-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-actions {
+                flex-direction: column;
+            }
+
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎰 Poker Table Manager</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="showAddModal()">➕ Add Table</button>
+                <button class="btn btn-success" onclick="loadTables()">🔄 Refresh</button>
+            </div>
+        </header>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalTables">0</div>
+                <div class="stat-label">Total Tables</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="plo4Count">0</div>
+                <div class="stat-label">PLO4 Tables</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="plo6Count">0</div>
+                <div class="stat-label">PLO6 Tables</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeTables">0</div>
+                <div class="stat-label">Active Tables</div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label>Game Type:</label>
+                <select id="filterGameType" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="PLO4">PLO4</option>
+                    <option value="PLO6">PLO6</option>
+                </select>
+
+                <label>Seats:</label>
+                <select id="filterSeats" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="2">Heads-Up (2)</option>
+                    <option value="6">6-Max</option>
+                    <option value="8">8-Max</option>
+                    <option value="9">9-Max</option>
+                </select>
+
+                <label>Status:</label>
+                <select id="filterStatus" onchange="applyFilters()">
+                    <option value="">All</option>
+                    <option value="1">Active</option>
+                    <option value="0">Inactive</option>
+                </select>
+
+                <label>Search:</label>
+                <input type="text" id="searchTable" placeholder="Table name..." oninput="applyFilters()">
+            </div>
+        </div>
+
+        <div class="tables-grid" id="tablesGrid"></div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal" id="tableModal">
+        <div class="modal-content">
+            <div class="modal-header" id="modalTitle">Add New Table</div>
+            <form id="tableForm" onsubmit="saveTable(event)">
+                <input type="hidden" id="tableId">
+
+                <div class="form-group">
+                    <label>Table Name *</label>
+                    <input type="text" id="tableName" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Game Type *</label>
+                    <select id="gameType" required>
+                        <option value="PLO4">PLO4</option>
+                        <option value="PLO6">PLO6</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Seats Total *</label>
+                    <select id="seatsTotal" required>
+                        <option value="2">2 (Heads-Up)</option>
+                        <option value="6">6 (6-Max)</option>
+                        <option value="8">8 (8-Max)</option>
+                        <option value="9">9 (9-Max)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Small Blind (ZAR) *</label>
+                    <input type="number" id="smallBlind" step="0.01" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Big Blind (ZAR) *</label>
+                    <input type="number" id="bigBlind" step="0.01" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="isActive">
+                        <option value="1">Active</option>
+                        <option value="0">Inactive</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-danger" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save Table</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API_BASE = '/api';
+        let allTables = [];
+
+        // Load tables on page load
+        document.addEventListener('DOMContentLoaded', loadTables);
+
+        async function loadTables() {
+            try {
+                const response = await fetch(`${API_BASE}/poker-tables`);
+                if (!response.ok) throw new Error('Failed to load tables');
+
+                const data = await response.json();
+                allTables = data.tables || [];
+
+                updateStats();
+                applyFilters();
+
+                showToast('Tables loaded successfully', 'success');
+            } catch (error) {
+                console.error('Error loading tables:', error);
+                showToast('Failed to load tables', 'error');
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalTables').textContent = allTables.length;
+            document.getElementById('plo4Count').textContent = allTables.filter(t => t.game_type === 'PLO4').length;
+            document.getElementById('plo6Count').textContent = allTables.filter(t => t.game_type === 'PLO6').length;
+            document.getElementById('activeTables').textContent = allTables.filter(t => t.is_active === 1).length;
+        }
+
+        function applyFilters() {
+            const gameType = document.getElementById('filterGameType').value;
+            const seats = document.getElementById('filterSeats').value;
+            const status = document.getElementById('filterStatus').value;
+            const search = document.getElementById('searchTable').value.toLowerCase();
+
+            let filtered = allTables.filter(table => {
+                if (gameType && table.game_type !== gameType) return false;
+                if (seats && table.seats_total.toString() !== seats) return false;
+                if (status && table.is_active.toString() !== status) return false;
+                if (search && !table.table_name.toLowerCase().includes(search)) return false;
+                return true;
+            });
+
+            renderTables(filtered);
+        }
+
+        function renderTables(tables) {
+            const grid = document.getElementById('tablesGrid');
+
+            if (tables.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1;">
+                        <h2>No tables found</h2>
+                        <p>Try adjusting your filters or add a new table</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = tables.map(table => `
+                <div class="table-card ${table.is_active ? '' : 'inactive'}">
+                    <div class="table-header">
+                        <div>
+                            <span class="status-indicator ${table.is_active ? 'active' : 'inactive'}"></span>
+                            <span class="table-name">${table.table_name}</span>
+                        </div>
+                        <span class="game-type-badge ${table.game_type}">${table.game_type}</span>
+                    </div>
+
+                    <div class="stakes-display">${table.stakes_display}</div>
+
+                    <div class="table-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Seats:</span>
+                            <span class="detail-value">${table.seats_total}-max</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Small Blind:</span>
+                            <span class="detail-value">ZAR ${table.small_blind.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Big Blind:</span>
+                            <span class="detail-value">ZAR ${table.big_blind.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Added:</span>
+                            <span class="detail-value">${new Date(table.scraped_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+
+                    <div class="table-actions">
+                        <button class="btn btn-primary" onclick="editTable(${table.id})">✏️ Edit</button>
+                        <button class="btn ${table.is_active ? 'btn-danger' : 'btn-success'}"
+                                onclick="toggleTableStatus(${table.id}, ${table.is_active})">
+                            ${table.is_active ? '⏸️ Deactivate' : '▶️ Activate'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddModal() {
+            document.getElementById('modalTitle').textContent = 'Add New Table';
+            document.getElementById('tableForm').reset();
+            document.getElementById('tableId').value = '';
+            document.getElementById('tableModal').classList.add('show');
+        }
+
+        function editTable(id) {
+            const table = allTables.find(t => t.id === id);
+            if (!table) return;
+
+            document.getElementById('modalTitle').textContent = 'Edit Table';
+            document.getElementById('tableId').value = table.id;
+            document.getElementById('tableName').value = table.table_name;
+            document.getElementById('gameType').value = table.game_type;
+            document.getElementById('seatsTotal').value = table.seats_total;
+            document.getElementById('smallBlind').value = table.small_blind;
+            document.getElementById('bigBlind').value = table.big_blind;
+            document.getElementById('isActive').value = table.is_active;
+
+            document.getElementById('tableModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('tableModal').classList.remove('show');
+        }
+
+        async function saveTable(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('tableId').value;
+            const formData = {
+                table_name: document.getElementById('tableName').value,
+                game_type: document.getElementById('gameType').value,
+                seats_total: parseInt(document.getElementById('seatsTotal').value),
+                small_blind: parseFloat(document.getElementById('smallBlind').value),
+                big_blind: parseFloat(document.getElementById('bigBlind').value),
+                is_active: parseInt(document.getElementById('isActive').value)
+            };
+
+            // Generate stakes_display
+            formData.stakes_display = `ZAR ${formData.small_blind}/${formData.big_blind}`;
+
+            try {
+                const url = id ? `${API_BASE}/poker-tables/${id}` : `${API_BASE}/poker-tables`;
+                const method = id ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) throw new Error('Failed to save table');
+
+                showToast(id ? 'Table updated successfully' : 'Table added successfully', 'success');
+                closeModal();
+                loadTables();
+            } catch (error) {
+                console.error('Error saving table:', error);
+                showToast('Failed to save table', 'error');
+            }
+        }
+
+        async function toggleTableStatus(id, currentStatus) {
+            try {
+                const response = await fetch(`${API_BASE}/poker-tables/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: currentStatus ? 0 : 1 })
+                });
+
+                if (!response.ok) throw new Error('Failed to update status');
+
+                showToast(`Table ${currentStatus ? 'deactivated' : 'activated'} successfully`, 'success');
+                loadTables();
+            } catch (error) {
+                console.error('Error updating status:', error);
+                showToast('Failed to update status', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

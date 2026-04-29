@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W4P Remote Control</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #0d1117;
+    color: #e0e0e0;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 20px;
+    background: linear-gradient(180deg, #161b22, #0d1117);
+    border-bottom: 1px solid #30363d;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  header h1 { font-size: 15px; letter-spacing: 2px; color: #58a6ff; font-weight: 700; }
+  .hdr-right { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8b949e; }
+  .conn-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    display: inline-block; vertical-align: middle;
+    background: #555; transition: background 0.3s;
+  }
+  .conn-dot.ok  { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+  .conn-dot.err { background: #f44336; box-shadow: 0 0 6px #f44336; }
+
+  /* ── Main area ── */
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Table scene ── */
+  .table-scene {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 10px;
+  }
+
+  /* ── Table felt ── */
+  .table-felt {
+    position: relative;
+    width: 720px;
+    height: 380px;
+    background: radial-gradient(ellipse at center, #1e6b35 0%, #145a28 40%, #0e4a1e 70%, #0a3515 100%);
+    border-radius: 190px;
+    border: 8px solid #5a3e0a;
+    box-shadow:
+      inset 0 0 60px rgba(0,0,0,0.4),
+      0 0 0 4px #3a2808,
+      0 0 0 8px #1a1408,
+      0 12px 40px rgba(0,0,0,0.7);
+    transform-origin: center center;
+  }
+  .table-felt::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 180px;
+    border: 2px solid rgba(255,255,255,0.06);
+    pointer-events: none;
+  }
+
+  /* ── Street label on felt ── */
+  .street-label {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 16px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.5);
+    color: #b0b0c8;
+    z-index: 5;
+  }
+  .street-label.PREFLOP { background: rgba(58,58,80,0.7); color: #b0b0c8; }
+  .street-label.FLOP    { background: rgba(26,90,58,0.7); color: #c0ffd8; }
+  .street-label.TURN    { background: rgba(106,74,16,0.7); color: #ffd080; }
+  .street-label.RIVER   { background: rgba(90,26,26,0.7); color: #ffa0a0; }
+
+  /* ── Board area (center of felt) ── */
+  .board-area {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    z-index: 5;
+  }
+  .board-cards {
+    display: flex;
+    gap: 5px;
+  }
+  .pot-label {
+    font-size: 0.85em;
+    font-weight: 700;
+    color: #ffd54f;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.4);
+    padding: 2px 14px;
+    border-radius: 10px;
+  }
+
+  /* ── Card rendering (4-colour) ── */
+  .card-mini {
+    width: 42px;
+    height: 58px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    border: 1.5px solid rgba(255,255,255,0.15);
+  }
+  .card-mini .rank { font-size: 1.3em; letter-spacing: -1px; }
+  .card-mini .suit { font-size: 1.5em; line-height: 1; margin-top: -2px; }
+  .card-mini.hearts   { background: #dc143c; }
+  .card-mini.diamonds { background: #0066ff; }
+  .card-mini.clubs    { background: #228b22; }
+  .card-mini.spades   { background: #1a1a2e; }
+
+  /* Board cards — larger */
+  .board-cards .card-mini {
+    width: 52px;
+    height: 72px;
+  }
+  .board-cards .card-mini .rank { font-size: 1.6em; }
+  .board-cards .card-mini .suit { font-size: 1.8em; }
+
+  /* Hole cards — smaller */
+  .hole-cards-row {
+    display: flex;
+    gap: 2px;
+    justify-content: center;
+  }
+  .hole-cards-row .card-mini {
+    width: 20px;
+    height: 28px;
+  }
+  .hole-cards-row .card-mini .rank { font-size: 0.6em; }
+  .hole-cards-row .card-mini .suit { font-size: 0.7em; margin-top: -1px; }
+
+  /* Card placeholder (undealt) */
+  .card-placeholder {
+    width: 52px;
+    height: 72px;
+    border-radius: 5px;
+    border: 2px dashed rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.15);
+  }
+
+  /* ── Seat positions (9-max oval) ── */
+  .seat-slot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+  }
+  .seat-slot[data-pos="0"] { left:  50%; top: 130%; }
+  .seat-slot[data-pos="1"] { left:   0%; top: 108%; }
+  .seat-slot[data-pos="2"] { left: -28%; top:  55%; }
+  .seat-slot[data-pos="3"] { left: -14%; top:  -2%; }
+  .seat-slot[data-pos="4"] { left:  26%; top: -28%; }
+  .seat-slot[data-pos="5"] { left:  74%; top: -28%; }
+  .seat-slot[data-pos="6"] { left: 114%; top:  -2%; }
+  .seat-slot[data-pos="7"] { left: 128%; top:  55%; }
+  .seat-slot[data-pos="8"] { left: 100%; top: 108%; }
+
+  /* ── Seat box ── */
+  .seat-box {
+    width: 136px;
+    background: rgba(13, 17, 23, 0.92);
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 6px 8px;
+    text-align: center;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    position: relative;
+  }
+  .seat-box.empty {
+    opacity: 0.3;
+    border-style: dashed;
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(13,17,23,0.4);
+  }
+  .seat-box.hero {
+    border-color: #1976d2;
+    box-shadow: 0 0 12px rgba(25,118,210,0.4), 0 4px 12px rgba(0,0,0,0.5);
+  }
+  .seat-box.action-on {
+    border-color: #ffd54f;
+    animation: glow-action 1.2s ease-in-out infinite;
+  }
+  @keyframes glow-action {
+    0%,100% { box-shadow: 0 0 8px rgba(255,213,79,0.5), 0 4px 12px rgba(0,0,0,0.5); }
+    50%     { box-shadow: 0 0 20px rgba(255,213,79,0.8), 0 4px 12px rgba(0,0,0,0.5); }
+  }
+
+  .seat-label {
+    font-size: 0.55em;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1px;
+  }
+  .seat-name {
+    font-size: 0.8em;
+    font-weight: 700;
+    color: #e0e0e0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    margin: 0 auto;
+  }
+  .seat-box.hero .seat-name { color: #64b5f6; }
+  .seat-stack {
+    font-size: 0.7em;
+    color: #aaa;
+    margin-top: 1px;
+  }
+  .seat-stack .amount { color: #4caf50; font-weight: 600; }
+  .seat-cards-area {
+    display: flex;
+    justify-content: center;
+    margin-top: 3px;
+  }
+
+  /* ── Dealer chip ── */
+  .dealer-chip {
+    position: absolute;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fff9c4, #f9a825);
+    color: #333;
+    font-size: 0.55em;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    border: 2px solid #f57f17;
+    z-index: 20;
+    top: -8px;
+    right: -8px;
+  }
+
+  /* ── Bet chip near seat ── */
+  .seat-bet {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.6em;
+    font-weight: 700;
+    color: #ffd54f;
+    background: rgba(0,0,0,0.7);
+    padding: 2px 8px 2px 4px;
+    border-radius: 10px;
+    white-space: nowrap;
+    z-index: 15;
+  }
+  .seat-bet .chip-icon {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #ff6b6b, #c0392b);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+  }
+
+  /* ── Per-seat action buttons ── */
+  .seat-actions {
+    display: none;
+    gap: 2px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    padding-top: 3px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .seat-box.action-on .seat-actions { display: flex; }
+
+  .sa-btn {
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.55em;
+    font-weight: 700;
+    cursor: pointer;
+    color: #d0d4dc;
+    transition: all 0.12s;
+    padding: 0 3px;
+    white-space: nowrap;
+  }
+  .sa-btn:not(:disabled):hover { filter: brightness(1.2); }
+  .sa-btn:active { filter: brightness(0.9); }
+  .sa-fold  { background: #545b68; }
+  .sa-check { background: #545b68; }
+  .sa-call  { background: #4a5568; }
+  .sa-raise { background: #1a9a6c; }
+  .sa-bet   { background: #1a9a6c; }
+  .sa-allin { background: #1a9a6c; }
+  .sa-cashout { background: #ffc107; color: #000; }
+  .sa-max   { background: #ff9800; color: #000; }
+  .sa-sitout { background: #e65100; color: #fff; flex: 0; padding: 0 6px; font-size: 9px; }
+  .sa-close  { background: #b71c1c; color: #fff; flex: 0; padding: 0 6px; font-size: 9px; }
+
+  /* ── Bet input row ── */
+  .seat-bet-row {
+    display: none;
+    gap: 2px;
+    align-items: center;
+    margin-top: 2px;
+  }
+  .seat-box.action-on .seat-bet-row { display: flex; }
+  .seat-bet-val {
+    width: 40px;
+    flex: 1;
+    min-width: 0;
+    padding: 2px 3px;
+    background: transparent;
+    border: 1px solid #555d6b;
+    border-radius: 3px;
+    color: #1a9a6c;
+    font-size: 0.55em;
+    font-weight: 700;
+    text-align: center;
+    height: 26px;
+  }
+  .seat-bet-val:focus { border-color: #1a9a6c; outline: none; }
+
+  /* ── Raise presets ── */
+  .raise-presets {
+    display: none;
+    gap: 2px;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .seat-box.action-on .raise-presets { display: flex; }
+  .rp-btn {
+    flex: 1;
+    height: 20px;
+    min-width: 0;
+    padding: 0 2px;
+    border: 1px solid #555d6b;
+    border-radius: 3px;
+    font-size: 0.48em;
+    font-weight: 700;
+    cursor: pointer;
+    color: #c8cdd4;
+    background: #3e4450;
+    transition: all 0.12s;
+  }
+  .rp-btn:not(:disabled):hover {
+    background: #1a9a6c;
+    border-color: #1a9a6c;
+    color: #fff;
+  }
+
+  /* ── Pre-action toggles ── */
+  .seat-controls-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 3px;
+    padding-top: 3px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .spa-toggle {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.5em;
+    font-weight: 600;
+    color: #888;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.15s;
+  }
+  .spa-toggle:hover { border-color: rgba(255,255,255,0.2); }
+  .spa-toggle.active {
+    background: rgba(76,175,80,0.2);
+    border-color: #4caf50;
+    color: #4caf50;
+  }
+  .spa-toggle.cashout-armed.active {
+    background: rgba(244,67,54,0.2);
+    border-color: #f44336;
+    color: #f44336;
+  }
+  .spa-toggle input[type=checkbox] { display: none; }
+  .expand-toggle {
+    width: 16px; height: 16px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 2px;
+    background: rgba(255,255,255,0.06);
+    color: #888;
+    font-size: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .expand-toggle:hover { color: #1a9a6c; border-color: #1a9a6c; }
+  .expand-toggle.open { color: #1a9a6c; transform: rotate(180deg); }
+
+  /* ── Expandable slider panel ── */
+  .seat-expand-panel {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 140px;
+    background: rgba(44, 48, 56, 0.97);
+    border: 1px solid #555d6b;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 4px 6px 6px;
+    z-index: 25;
+    display: none;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+  }
+  .seat-expand-panel.open { display: block; }
+  .seat-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .seat-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: #555d6b;
+    outline: none;
+    cursor: pointer;
+  }
+  .seat-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #1a9a6c;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    cursor: pointer;
+  }
+
+  /* ── Command log ── */
+  #cmd-log {
+    background: #080e1c;
+    border-top: 1px solid #30363d;
+    max-height: 80px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    flex-shrink: 0;
+  }
+  .log-entry { padding: 1px 0; border-bottom: 1px solid #101c2e; }
+  .log-ts  { color: #4a5a70; }
+  .log-ok  { color: #4caf50; }
+  .log-err { color: #f44336; }
+
+  .empty-state {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255,255,255,0.25);
+    font-size: 14px;
+    letter-spacing: 1px;
+    z-index: 2;
+  }
+
+  /* ── Bottom bar (emergency fallback) ── */
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(180deg, #161b22, #0d1117);
+    border-top: 1px solid #30363d;
+    padding: 6px 16px;
+    display: flex; align-items: center; gap: 8px;
+    z-index: 100;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  .bottom-bar.hidden {
+    transform: translateY(100%); opacity: 0; pointer-events: none;
+  }
+  .bottom-bar .bb-who {
+    font-size: 10px; color: #58a6ff; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; white-space: nowrap;
+  }
+  .bottom-bar .bb-actions { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+  .bottom-bar .bb-btn {
+    padding: 5px 10px; font-size: 11px; font-weight: 700;
+    border: none; border-radius: 4px; cursor: pointer; color: #fff;
+    transition: filter 0.12s;
+  }
+  .bottom-bar .bb-btn:hover { filter: brightness(1.15); }
+  .bb-fold   { background: #b82030; }
+  .bb-check  { background: #1d8a38; }
+  .bb-call   { background: #1e5eb8; }
+  .bb-preset { background: #7a5a18; }
+  .bb-allin  { background: linear-gradient(135deg, #7a1020, #500a18); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>W4P REMOTE</h1>
+  <div class="hdr-right">
+    <span id="conn-label">--</span>
+    <span id="conn-dot" class="conn-dot"></span>
+  </div>
+</header>
+
+<div class="main-area">
+  <div class="table-scene">
+    <div class="table-felt" id="table-felt">
+      <div class="street-label" id="street-label">WAITING</div>
+      <div class="board-area">
+        <div class="board-cards" id="board-cards"></div>
+        <div class="pot-label" id="pot-label">POT R0.00</div>
+      </div>
+      <div id="seats-container"></div>
+    </div>
+  </div>
+</div>
+
+<div id="cmd-log"></div>
+
+<div id="bottom-bar" class="bottom-bar hidden">
+  <span class="bb-who" id="bb-who"></span>
+  <div class="bb-actions" id="bb-actions"></div>
+</div>
+
+<script>
+'use strict';
+
+const API = '/api';
+const POLL_MS = 300;
+
+const SUIT_MAP = {
+  h: { sym: '\u2665', cls: 'hearts' },
+  d: { sym: '\u2666', cls: 'diamonds' },
+  s: { sym: '\u2660', cls: 'spades' },
+  c: { sym: '\u2663', cls: 'clubs' }
+};
+
+let lastTable = null;
+let preActionState = {};   // seatNo -> 'check_fold' | 'check_call' | null
+let cashoutState = {};     // seatNo -> true | false
+let seatPanelOpen = {};    // seatNo -> true | false
+let lastBoardKey = null;
+
+// Diff rendering state
+const renderedSeats = new Map(); // position (0-8) -> { hash }
+let lastBBHash = null;
+let lastBoardHash = null;
+let slotsCreated = false;
+
+// ── Utilities ────────────────────────────────
+
+function esc(s) {
+  var d = document.createElement('span');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function nowTs() {
+  return new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+
+function renderCardHtml(str) {
+  if (!str || str.length < 2) return '<div class="card-mini spades"><span class="rank">?</span><span class="suit">?</span></div>';
+  var rank = str.slice(0, -1).toUpperCase();
+  var suitKey = str.slice(-1).toLowerCase();
+  var s = SUIT_MAP[suitKey];
+  if (!s) return '<div class="card-mini spades"><span class="rank">' + esc(rank) + '</span><span class="suit">?</span></div>';
+  return '<div class="card-mini ' + s.cls + '"><span class="rank">' + esc(rank) + '</span><span class="suit">' + s.sym + '</span></div>';
+}
+
+function getSeatNo(seat) {
+  return seat.seat_no != null ? seat.seat_no : seat.seat_index;
+}
+
+// ── Command log ──────────────────────────────
+
+function logCmd(seatNo, cmd, amount, ok, detail) {
+  var log = document.getElementById('cmd-log');
+  var div = document.createElement('div');
+  div.className = 'log-entry';
+  var amtStr = amount != null ? ' R' + amount : '';
+  div.innerHTML =
+    '<span class="log-ts">[' + nowTs() + ']</span> S' + seatNo +
+    ' <b>' + esc(cmd) + '</b>' + amtStr +
+    ' <span class="' + (ok ? 'log-ok' : 'log-err') + '">' + (ok ? 'OK' : 'FAIL') + '</span>' +
+    (detail ? ' ' + esc(detail) : '');
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  while (log.children.length > 60) log.removeChild(log.firstChild);
+}
+
+// ── API: Fetch table ─────────────────────────
+
+async function fetchTable() {
+  var dot = document.getElementById('conn-dot');
+  var label = document.getElementById('conn-label');
+  try {
+    var r = await fetch(API + '/table/latest');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var j = await r.json();
+    if (j.ok && j.table) {
+      dot.className = 'conn-dot ok';
+      label.textContent = 'v' + (j.table.state_version || '?');
+      lastTable = j.table;
+    } else {
+      dot.className = 'conn-dot';
+      label.textContent = 'no table';
+      lastTable = null;
+    }
+  } catch (e) {
+    dot.className = 'conn-dot err';
+    label.textContent = 'error';
+    lastTable = null;
+  }
+  render();
+}
+
+// ── API: Send command ────────────────────────
+
+async function sendCmd(seatNo, cmdType, amount) {
+  var tableId = lastTable ? lastTable.table_id : null;
+  var body = { table_id: tableId, seat_no: seatNo, command_type: cmdType, remote_click_ts: Date.now() };
+  if (amount != null) body.amount = amount;
+  try {
+    var r = await fetch(API + '/commands/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    logCmd(seatNo, cmdType, amount, r.ok, r.ok ? '' : 'HTTP ' + r.status);
+  } catch (e) {
+    logCmd(seatNo, cmdType, amount, false, e.message);
+  }
+}
+
+// ── Render: street label + pot ───────────────
+
+function renderBar() {
+  var streetEl = document.getElementById('street-label');
+  var potEl = document.getElementById('pot-label');
+  if (!lastTable) {
+    streetEl.textContent = 'WAITING';
+    streetEl.className = 'street-label';
+    potEl.textContent = 'POT R0.00';
+    return;
+  }
+  var street = lastTable.street || '--';
+  streetEl.textContent = street;
+  streetEl.className = 'street-label ' + street;
+  var pot = lastTable.pot_zar != null ? lastTable.pot_zar.toFixed(2) : '0.00';
+  potEl.textContent = 'POT R' + pot;
+}
+
+// ── Render: board cards (diff) ───────────────
+
+function renderBoard() {
+  var container = document.getElementById('board-cards');
+  if (!lastTable) {
+    if (lastBoardHash !== null) {
+      container.innerHTML = '';
+      lastBoardHash = null;
+    }
+    return;
+  }
+  var b = lastTable.board || {};
+  var bh = (b.flop || []).join(',') + '|' + (b.turn || '') + '|' + (b.river || '');
+  if (bh === lastBoardHash) return;
+  lastBoardHash = bh;
+
+  var cards = [];
+  if (Array.isArray(b.flop)) b.flop.forEach(function(c) { cards.push(c); });
+  while (cards.length < 3) cards.push(null);
+  cards.push(b.turn || null);
+  cards.push(b.river || null);
+
+  var html = '';
+  cards.forEach(function(c) {
+    if (c) {
+      html += renderCardHtml(c);
+    } else {
+      html += '<div class="card-placeholder"></div>';
+    }
+  });
+  container.innerHTML = html;
+}
+
+// ── Seat hash (diff rendering) ───────────────
+
+function seatHash(seat) {
+  var sn = getSeatNo(seat);
+  var acts = (seat.available_actions || []).join(',');
+  var hc = (seat.hole_cards || []).join(',');
+  var ba = seat.buttons ? (seat.buttons.actions || []).map(function(a) { return a.action + ':' + (a.amount || ''); }).join(',') : '';
+  var sl = seat.buttons && seat.buttons.slider ? seat.buttons.slider.current + ':' + seat.buttons.slider.min + ':' + seat.buttons.slider.max : '';
+  return seat.name + '|' + seat.stack_zar + '|' + acts + '|' + hc + '|' +
+    seat.bet + '|' + ba + '|' + sl + '|' + seat.is_dealer + '|' +
+    (preActionState[sn] || '') + '|' + (cashoutState[sn] || false) + '|' +
+    (seatPanelOpen[sn] || false);
+}
+
+// ── Build seat box HTML ──────────────────────
+
+function buildSeatBoxHtml(seat) {
+  var sn = getSeatNo(seat);
+  var isActive = Array.isArray(seat.available_actions) && seat.available_actions.length > 0;
+  var acts = seat.available_actions || [];
+  var btns = seat.buttons || null;
+
+  var cls = 'seat-box hero';
+  if (isActive) cls += ' action-on';
+
+  var html = '<div class="' + cls + '">';
+
+  // Dealer chip
+  if (seat.is_dealer) html += '<div class="dealer-chip">D</div>';
+
+  // Bet display above seat
+  if (seat.bet && seat.bet > 0) {
+    html += '<div class="seat-bet"><div class="chip-icon"></div><span>R ' + seat.bet + '</span></div>';
+  }
+
+  // Identity
+  html += '<div class="seat-label">Seat ' + sn + '</div>';
+  html += '<div class="seat-name">' + esc(seat.name || 'Unknown') + '</div>';
+  html += '<div class="seat-stack"><span class="amount">R ' +
+    (seat.stack_zar != null ? seat.stack_zar.toFixed(2) : '0.00') + '</span></div>';
+
+  // Hole cards
+  if (Array.isArray(seat.hole_cards) && seat.hole_cards.length > 0) {
+    html += '<div class="seat-cards-area"><div class="hole-cards-row">';
+    seat.hole_cards.forEach(function(c) { html += renderCardHtml(c); });
+    html += '</div></div>';
+  }
+
+  // Action buttons (fold, check, call, misc)
+  if (isActive) {
+    html += '<div class="seat-actions">';
+    if (acts.includes('fold'))
+      html += '<button class="sa-btn sa-fold" data-seat="' + sn + '" data-cmd="fold">FOLD</button>';
+    if (acts.includes('check'))
+      html += '<button class="sa-btn sa-check" data-seat="' + sn + '" data-cmd="check">CHECK</button>';
+    if (acts.includes('call')) {
+      var ca = btns && btns.actions ? btns.actions.find(function(a) { return a.action === 'call'; }) : null;
+      var callLbl = ca && ca.amount != null ? 'CALL R' + ca.amount : 'CALL';
+      html += '<button class="sa-btn sa-call" data-seat="' + sn + '" data-cmd="call">' + callLbl + '</button>';
+    }
+    if (acts.includes('allin'))
+      html += '<button class="sa-btn sa-allin" data-seat="' + sn + '" data-cmd="allin">ALL-IN</button>';
+    ['cashout', 'show', 'run_it_twice'].forEach(function(a) {
+      if (acts.includes(a))
+        html += '<button class="sa-btn sa-cashout" data-seat="' + sn + '" data-cmd="' + a + '">' + a.replace(/_/g, ' ').toUpperCase() + '</button>';
+    });
+    html += '</div>';
+
+    // Raise/bet row
+    var hasRaise = acts.includes('raise');
+    var hasBet = acts.includes('bet');
+    if (hasRaise || hasBet) {
+      var cmdWord = hasBet ? 'bet' : 'raise';
+      var slider = btns && btns.slider ? btns.slider : null;
+      var sMin = slider ? slider.min : 1;
+      var sMax = slider ? slider.max : 9999;
+      var sCur = slider ? (slider.current || sMin) : sMin;
+
+      html += '<div class="seat-bet-row">';
+      html += '<input class="seat-bet-val" type="number" data-slider-seat="' + sn + '" value="' + sCur + '" min="' + sMin + '" max="' + sMax + '">';
+      html += '<button class="sa-btn sa-max" data-seat="' + sn + '" data-cmd="max">MAX</button>';
+      html += '<button class="sa-btn sa-raise" data-seat="' + sn + '" data-cmd="' + cmdWord + '" data-use-input="1">' + cmdWord.toUpperCase() + '</button>';
+      html += '</div>';
+
+      // Presets
+      html += '<div class="raise-presets">';
+      html += '<button class="rp-btn" data-seat="' + sn + '" data-cmd="min">MIN</button>';
+      html += '<button class="rp-btn" data-seat="' + sn + '" data-cmd="half">1/2</button>';
+      html += '<button class="rp-btn" data-seat="' + sn + '" data-cmd="pot">POT</button>';
+      html += '<button class="rp-btn" data-seat="' + sn + '" data-cmd="max">MAX</button>';
+      html += '</div>';
+    }
+  }
+
+  // Pre-action toggles + expand
+  var curPa = preActionState[sn] || null;
+  var curCo = cashoutState[sn] || false;
+  var panelOpen = seatPanelOpen[sn] || false;
+
+  html += '<div class="seat-controls-footer">';
+  html += '<label class="spa-toggle' + (curPa === 'check_fold' ? ' active' : '') + '">' +
+    '<input type="checkbox" data-preact="check_fold" data-seat="' + sn + '"' + (curPa === 'check_fold' ? ' checked' : '') + '> C/F</label>';
+  html += '<label class="spa-toggle' + (curPa === 'check_call' ? ' active' : '') + '">' +
+    '<input type="checkbox" data-preact="check_call" data-seat="' + sn + '"' + (curPa === 'check_call' ? ' checked' : '') + '> C/C</label>';
+  html += '<label class="spa-toggle cashout-armed' + (curCo ? ' active' : '') + '">' +
+    '<input type="checkbox" data-preact="cashout" data-seat="' + sn + '"' + (curCo ? ' checked' : '') + '> CO</label>';
+  html += '<button class="sa-btn sa-sitout" data-seat="' + sn + '" data-cmd="sit_out">SO</button>';
+  html += '<button class="sa-btn sa-close" data-seat="' + sn + '" data-cmd="close_table">CT</button>';
+
+  // Expand toggle (only if raise/bet available)
+  if (isActive && (acts.includes('raise') || acts.includes('bet'))) {
+    html += '<button class="expand-toggle' + (panelOpen ? ' open' : '') + '" data-expand="' + sn + '">\u25BC</button>';
+  }
+  html += '</div>';
+
+  // Expandable slider panel
+  if (isActive && (acts.includes('raise') || acts.includes('bet'))) {
+    var slider = btns && btns.slider ? btns.slider : null;
+    var sMin = slider ? slider.min : 1;
+    var sMax = slider ? slider.max : 9999;
+    var sStep = slider ? (slider.step || 1) : 1;
+    var sCur = slider ? (slider.current || sMin) : sMin;
+
+    html += '<div class="seat-expand-panel' + (panelOpen ? ' open' : '') + '">';
+    html += '<div class="seat-slider-row">';
+    html += '<input type="range" class="seat-slider" data-slider-seat="' + sn + '" min="' + sMin + '" max="' + sMax + '" step="' + sStep + '" value="' + sCur + '">';
+    html += '<input type="number" class="seat-bet-val" data-slider-seat="' + sn + '" value="' + sCur + '" min="' + sMin + '" max="' + sMax + '">';
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── Render: seats (diff-based on 9 positions) ──
+
+function renderSeats() {
+  var container = document.getElementById('seats-container');
+
+  // Create 9 seat-slot wrappers once
+  if (!slotsCreated) {
+    for (var i = 0; i < 9; i++) {
+      var slot = document.createElement('div');
+      slot.className = 'seat-slot';
+      slot.dataset.pos = i;
+      container.appendChild(slot);
+    }
+    slotsCreated = true;
+  }
+
+  // Build position -> seat lookup
+  var posSeatMap = {};
+  if (lastTable && Array.isArray(lastTable.seats)) {
+    lastTable.seats.forEach(function(seat) {
+      if (seat.is_self_player === true && seat.name != null) {
+        var pos = seat.seat_index != null ? seat.seat_index : seat.seat_no;
+        if (pos != null && pos >= 0 && pos < 9) posSeatMap[pos] = seat;
+      }
+    });
+  }
+
+  // Update each position
+  for (var pos = 0; pos < 9; pos++) {
+    var seat = posSeatMap[pos];
+    var hash = seat ? seatHash(seat) : 'empty';
+    var existing = renderedSeats.get(pos);
+    if (existing && existing.hash === hash) continue;
+
+    var slot = container.children[pos];
+    if (seat) {
+      slot.innerHTML = buildSeatBoxHtml(seat);
+    } else {
+      slot.innerHTML = '<div class="seat-box empty"><div class="seat-label">Seat ' + pos + '</div><div class="seat-name">-</div></div>';
+    }
+    renderedSeats.set(pos, { hash: hash });
+  }
+}
+
+// ── Event delegation on seats container ──────
+
+document.addEventListener('DOMContentLoaded', function() {
+  var container = document.getElementById('seats-container');
+
+  // Click delegation: action buttons + presets + expand
+  container.addEventListener('click', function(e) {
+    // Expand toggle
+    var expandBtn = e.target.closest('[data-expand]');
+    if (expandBtn) {
+      var sn = Number(expandBtn.dataset.expand);
+      seatPanelOpen[sn] = !seatPanelOpen[sn];
+      render();
+      return;
+    }
+
+    // Command button
+    var btn = e.target.closest('[data-cmd]');
+    if (!btn) return;
+    var seatNo = Number(btn.dataset.seat);
+    var cmd = btn.dataset.cmd;
+
+    // If button has data-use-input, read amount from number input in same seat
+    if (btn.dataset.useInput) {
+      var slot = btn.closest('.seat-slot');
+      var numInput = slot ? slot.querySelector('input.seat-bet-val[type=number]') : null;
+      var amount = numInput ? Number(numInput.value) : null;
+      sendCmd(seatNo, cmd, amount);
+    } else {
+      sendCmd(seatNo, cmd);
+    }
+  });
+
+  // Change delegation: pre-action toggles
+  container.addEventListener('change', function(e) {
+    var toggle = e.target.closest('[data-preact]');
+    if (!toggle) return;
+    var sn = Number(toggle.dataset.seat);
+    var type = toggle.dataset.preact;
+    var checked = toggle.checked;
+
+    if (type === 'cashout') {
+      if (checked) { cashoutState[sn] = true; sendCmd(sn, 'cashout_pre'); }
+      else { cashoutState[sn] = false; sendCmd(sn, 'clear_cashout'); }
+    } else {
+      // check_fold / check_call — mutually exclusive
+      if (checked) {
+        preActionState[sn] = type;
+        sendCmd(sn, type);
+      } else {
+        preActionState[sn] = null;
+        sendCmd(sn, 'clear');
+      }
+    }
+    render();
+  });
+
+  // Input delegation: slider <-> number sync
+  container.addEventListener('input', function(e) {
+    var el = e.target;
+    if (!el.dataset.sliderSeat) return;
+    var sn = el.dataset.sliderSeat;
+    var slot = el.closest('.seat-slot');
+    if (!slot) return;
+
+    // Sync all inputs with same data-slider-seat in this slot
+    var siblings = slot.querySelectorAll('[data-slider-seat="' + sn + '"]');
+    var val = el.value;
+    siblings.forEach(function(sib) {
+      if (sib !== el) sib.value = val;
+    });
+  });
+});
+
+// ── Bottom bar (emergency fallback) ──────────
+
+function renderBottomBar() {
+  var bar = document.getElementById('bottom-bar');
+  var who = document.getElementById('bb-who');
+  var acts = document.getElementById('bb-actions');
+
+  if (!lastTable || !Array.isArray(lastTable.seats)) {
+    bar.classList.add('hidden'); lastBBHash = null; return;
+  }
+
+  var hero = lastTable.seats.find(function(s) {
+    return s.is_self_player === true && s.name != null &&
+      Array.isArray(s.available_actions) && s.available_actions.length > 0;
+  });
+
+  if (!hero) { bar.classList.add('hidden'); lastBBHash = null; return; }
+
+  var sn = getSeatNo(hero);
+  var av = hero.available_actions;
+  var btns = hero.buttons || null;
+  var ca = btns && btns.actions ? btns.actions.find(function(a) { return a.action === 'call'; }) : null;
+  var bbh = hero.name + '|' + av.join(',') + '|' + (ca ? ca.amount : '') + '|' + sn;
+  if (bbh === lastBBHash) return;
+  lastBBHash = bbh;
+
+  bar.classList.remove('hidden');
+  who.textContent = hero.name;
+  acts.innerHTML = '';
+
+  function mkBBBtn(label, cls, onclick) {
+    var b = document.createElement('button');
+    b.className = 'bb-btn ' + cls;
+    b.textContent = label;
+    b.addEventListener('click', onclick);
+    return b;
+  }
+
+  if (av.includes('fold'))
+    acts.appendChild(mkBBBtn('FOLD', 'bb-fold', function() { sendCmd(sn, 'fold'); }));
+  if (av.includes('check'))
+    acts.appendChild(mkBBBtn('CHECK', 'bb-check', function() { sendCmd(sn, 'check'); }));
+  if (av.includes('call')) {
+    var lbl = ca && ca.amount != null ? 'CALL R' + ca.amount : 'CALL';
+    acts.appendChild(mkBBBtn(lbl, 'bb-call', function() { sendCmd(sn, 'call'); }));
+  }
+  if (av.includes('raise') || av.includes('bet')) {
+    acts.appendChild(mkBBBtn('MIN', 'bb-preset', function() { sendCmd(sn, 'min'); }));
+    acts.appendChild(mkBBBtn('POT', 'bb-preset', function() { sendCmd(sn, 'pot'); }));
+    acts.appendChild(mkBBBtn('MAX', 'bb-preset', function() { sendCmd(sn, 'max'); }));
+  }
+  if (av.includes('allin'))
+    acts.appendChild(mkBBBtn('ALL-IN', 'bb-allin', function() { sendCmd(sn, 'allin'); }));
+}
+
+// ── New-hand detection: reset pre-actions ────
+
+function checkNewHand() {
+  if (!lastTable || !lastTable.board) return;
+  var b = lastTable.board;
+  var flopStr = Array.isArray(b.flop) ? b.flop.join(',') : '';
+  var boardKey = lastTable.street + ':' + flopStr;
+  if (lastBoardKey !== null && lastBoardKey !== boardKey) {
+    var isPreflop = boardKey.startsWith('PREFLOP:');
+    if (isPreflop || flopStr !== lastBoardKey.split(':').slice(1).join(':')) {
+      preActionState = {};
+      cashoutState = {};
+      seatPanelOpen = {};
+    }
+  }
+  lastBoardKey = boardKey;
+}
+
+// ── Main render ──────────────────────────────
+
+function render() {
+  checkNewHand();
+  renderBar();
+  renderBoard();
+  renderSeats();
+  renderBottomBar();
+}
+
+// ── Auto-scale table for viewport ────────────
+
+function autoScale() {
+  var scene = document.querySelector('.table-scene');
+  var felt = document.getElementById('table-felt');
+  if (!scene || !felt) return;
+  // Table needs ~820px width including overflowing seats
+  var scale = Math.min(1, (scene.clientWidth - 20) / 900, (scene.clientHeight - 20) / 600);
+  felt.style.transform = 'scale(' + Math.max(0.4, scale) + ')';
+}
+
+window.addEventListener('resize', autoScale);
+
+// ── Init & poll ──────────────────────────────
+
+fetchTable();
+setInterval(fetchTable, POLL_MS);
+setTimeout(autoScale, 50);
+</script>
+</body>
+</html>

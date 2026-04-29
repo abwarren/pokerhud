@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N4P Remote Table Control</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    .header {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .header h1 {
+      font-size: clamp(1.5em, 4vw, 2em);
+      letter-spacing: 2px;
+    }
+
+    .test-badge {
+      background: #ff6b35;
+      padding: 8px 16px;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 0.9em;
+    }
+
+    /* Status colors - High contrast pastel palette (WCAG AAA compliant) */
+    .status-info {
+      background: #5dade2;
+      color: #000;
+      border-left: 4px solid #2471a3;
+    }
+
+    .status-success {
+      background: #58d68d;
+      color: #000;
+      border-left: 4px solid #239b56;
+    }
+
+    .status-warning {
+      background: #f7dc6f;
+      color: #000;
+      border-left: 4px solid #d68910;
+    }
+
+    .status-error {
+      background: #ec7063;
+      color: #000;
+      border-left: 4px solid #c0392b;
+    }
+
+    .status-empty {
+      background: #95a5a6;
+      color: #fff;
+      border-left: 4px solid #5d6d7e;
+    }
+
+    /* Blinker animation - Max 2 flashes per second, 3 total iterations */
+    @keyframes blink-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.03); }
+    }
+
+    .blinker {
+      animation: blink-pulse 0.5s ease-in-out 3;
+    }
+
+    /* Shape indicators */
+    .shape-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: bold;
+    }
+
+    .shape-indicator.circle-filled {
+      background: currentColor;
+    }
+
+    .shape-indicator.circle-outline {
+      border: 2px solid currentColor;
+      background: transparent;
+    }
+
+    /* Table container */
+    .poker-table-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      position: relative;
+    }
+
+    /* Central poker table */
+    .poker-table {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      height: 500px;
+      margin: 60px auto;
+      background: linear-gradient(135deg, #0f5132 0%, #1a7a4a 100%);
+      border-radius: 50%;
+      border: 12px solid #8b6914;
+      box-shadow:
+        inset 0 0 50px rgba(0, 0, 0, 0.5),
+        0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Table info display in center */
+    .table-info-center {
+      text-align: center;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-radius: 15px;
+      min-width: 250px;
+    }
+
+    .pot-display {
+      font-size: 1.8em;
+      font-weight: bold;
+      color: #f7dc6f;
+      margin-bottom: 10px;
+    }
+
+    .board-display {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 15px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: white;
+      color: #000;
+      padding: 12px 8px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 1.1em;
+      min-width: 45px;
+      text-align: center;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .card.red {
+      color: #d32f2f;
+    }
+
+    /* Seat positioning - 9 seats around the table */
+    .seats-container {
+      position: relative;
+    }
+
+    .seat {
+      position: absolute;
+      width: 180px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 3px solid transparent;
+      border-radius: 12px;
+      padding: 15px;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    /* Seat status cards with color-coding */
+    .seat.occupied {
+      background: rgba(88, 214, 141, 0.15);
+      border-color: #58d68d;
+      border-left-width: 5px;
+    }
+
+    .seat.empty {
+      background: rgba(149, 165, 166, 0.15);
+      border-color: #7f8c8d;
+      border-left-width: 5px;
+    }
+
+    .seat.hero {
+      background: rgba(93, 173, 226, 0.2);
+      border-color: #5dade2;
+      border-left-width: 5px;
+      box-shadow: 0 0 20px rgba(93, 173, 226, 0.5);
+    }
+
+    .seat.has-pending {
+      background: rgba(247, 220, 111, 0.2);
+      border-color: #f7dc6f;
+      border-left-width: 5px;
+    }
+
+    /* Position seats around table (9 seats, oval arrangement) */
+    .seat[data-seat="1"] { top: -80px; left: 50%; transform: translateX(-50%); }
+    .seat[data-seat="2"] { top: -40px; left: 72%; }
+    .seat[data-seat="3"] { top: 120px; left: 85%; }
+    .seat[data-seat="4"] { top: 320px; left: 75%; }
+    .seat[data-seat="5"] { top: 420px; left: 50%; transform: translateX(-50%); }
+    .seat[data-seat="6"] { top: 320px; left: -5%; }
+    .seat[data-seat="7"] { top: 120px; left: -15%; }
+    .seat[data-seat="8"] { top: -40px; left: 8%; }
+    .seat[data-seat="9"] { top: 60px; left: 0%; }
+
+    /* Seat content */
+    .seat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .seat-number {
+      font-weight: bold;
+      font-size: 0.9em;
+      opacity: 0.9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Status indicator with shape and color */
+    .seat-status-indicator {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+      position: relative;
+    }
+
+    .seat-status-indicator::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .seat-status-indicator.online {
+      background: #58d68d;
+      box-shadow: 0 0 10px rgba(88, 214, 141, 0.6);
+    }
+
+    .seat-status-indicator.online::before {
+      background: #239b56;
+    }
+
+    .seat-status-indicator.offline {
+      background: #7f8c8d;
+      border: 2px solid #5d6d7e;
+    }
+
+    .seat-status-indicator.pending {
+      background: #f7dc6f;
+      box-shadow: 0 0 10px rgba(247, 220, 111, 0.6);
+      animation: pulse-pending 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-pending {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .seat-name {
+      font-size: 1.1em;
+      font-weight: bold;
+      margin-bottom: 8px;
+      min-height: 1.3em;
+      text-align: center;
+      word-break: break-word;
+    }
+
+    .seat-name.empty-label {
+      color: #bdc3c7;
+      font-style: italic;
+      font-weight: normal;
+    }
+
+    .seat-stack {
+      text-align: center;
+      font-size: 1em;
+      color: #f7dc6f;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .seat-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .seat-actions button {
+      padding: 6px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 0.75em;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .seat-actions button:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .seat-actions button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .seat-actions button:focus {
+      outline: 3px solid #fff;
+      outline-offset: 2px;
+    }
+
+    /* High contrast button colors */
+    .btn-fold {
+      background: #ec7063;
+      color: #000;
+      border-bottom: 3px solid #c0392b;
+    }
+
+    .btn-check {
+      background: #58d68d;
+      color: #000;
+      border-bottom: 3px solid #239b56;
+    }
+
+    .btn-call {
+      background: #5dade2;
+      color: #000;
+      border-bottom: 3px solid #2471a3;
+    }
+
+    .btn-raise {
+      background: #f39c12;
+      color: #000;
+      border-bottom: 3px solid #d68910;
+    }
+
+    .btn-cashout {
+      background: #f7dc6f;
+      color: #000;
+      border-bottom: 3px solid #d68910;
+    }
+
+    /* Pending command card with blinker */
+    .pending-cmd {
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: rgba(247, 220, 111, 0.3);
+      border-left: 3px solid #d68910;
+      border-radius: 4px;
+      font-size: 0.8em;
+      text-align: left;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pending-cmd .shape-indicator {
+      color: #d68910;
+    }
+
+    .dealer-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 28px;
+      height: 28px;
+      background: #fff;
+      color: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.9em;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+      border: 2px solid #8b6914;
+    }
+
+    /* Command log with status cards */
+    .command-log {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 30px;
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .command-log h2 {
+      margin-bottom: 15px;
+      font-size: 1.2em;
+    }
+
+    .log-entries {
+      max-height: 250px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 5px;
+    }
+
+    .log-entry {
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      font-size: 0.9em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .log-entry-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .log-timestamp {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.85em;
+      white-space: nowrap;
+    }
+
+    /* Responsive design */
+    @media (max-width: 1024px) {
+      .poker-table {
+        transform: scale(0.8);
+      }
+
+      .seats-container {
+        transform: scale(0.8);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .poker-table {
+        transform: scale(0.6);
+      }
+
+      .seats-container {
+        transform: scale(0.6);
+      }
+
+      .seat {
+        width: 160px;
+      }
+    }
+
+    /* Accessibility */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /* Loading state */
+    .loading {
+      text-align: center;
+      padding: 20px;
+      font-size: 1.2em;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎰 N4P Remote Table Control</h1>
+    <div class="test-badge" role="status">TEST SERVER</div>
+  </div>
+
+  <div class="poker-table-container">
+    <div class="loading" id="loading" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      Connecting to table...
+    </div>
+
+    <div class="seats-container" id="seatsContainer" style="display: none;">
+      <div class="poker-table">
+        <div class="table-info-center" role="region" aria-label="Table information">
+          <div class="pot-display" id="potDisplay" aria-live="polite">Pot: R0</div>
+          <div id="streetDisplay" style="font-size: 0.9em; color: #bdc3c7;" aria-live="polite">WAITING</div>
+          <div class="board-display" id="boardDisplay" aria-label="Community cards"></div>
+        </div>
+      </div>
+
+      <!-- Seats will be dynamically generated here -->
+      <div id="seatsWrapper" role="group" aria-label="Player seats"></div>
+    </div>
+  </div>
+
+  <div class="command-log">
+    <h2>📋 Command Log</h2>
+    <div class="log-entries" id="commandLog" role="log" aria-live="polite" aria-atomic="false">
+      <div class="log-entry status-info">
+        <div class="log-entry-content">
+          <span class="shape-indicator circle-filled" style="color: #2471a3;" aria-hidden="true">ℹ</span>
+          <span>System ready</span>
+        </div>
+        <span class="log-timestamp" id="systemTime"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let commandLogEntries = [];
+
+    function addLogEntry(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const icons = {
+        info: 'ℹ',
+        success: '✓',
+        warning: '⚠',
+        error: '✗'
+      };
+
+      const statusClasses = {
+        info: 'status-info',
+        success: 'status-success',
+        warning: 'status-warning',
+        error: 'status-error'
+      };
+
+      commandLogEntries.unshift({
+        message,
+        timestamp,
+        type,
+        icon: icons[type] || 'ℹ',
+        statusClass: statusClasses[type] || 'status-info'
+      });
+
+      // Keep last 20 entries
+      if (commandLogEntries.length > 20) {
+        commandLogEntries = commandLogEntries.slice(0, 20);
+      }
+
+      renderCommandLog();
+    }
+
+    function renderCommandLog() {
+      const logEl = document.getElementById('commandLog');
+      logEl.innerHTML = commandLogEntries.map(entry => `
+        <div class="log-entry ${entry.statusClass}" role="status">
+          <div class="log-entry-content">
+            <span class="shape-indicator circle-filled" aria-hidden="true">${entry.icon}</span>
+            <span>${entry.message}</span>
+          </div>
+          <span class="log-timestamp">${entry.timestamp}</span>
+        </div>
+      `).join('');
+    }
+
+    function queueCommand(tableId, seatNo, commandType) {
+      fetch(API_BASE + '/commands/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table_id: tableId,
+          seat_no: seatNo,
+          command_type: commandType
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          addLogEntry(`${commandType.toUpperCase()} queued for Seat ${seatNo}`, 'success');
+        } else {
+          addLogEntry(`Failed to queue ${commandType}: ${data.error}`, 'error');
+        }
+      })
+      .catch(err => {
+        addLogEntry(`Network error: ${err.message}`, 'error');
+      });
+    }
+
+    function renderSeat(seat, tableId) {
+      const isOccupied = seat.name !== null;
+      const hasPending = seat.pending_cmd !== null;
+      const statusClass = isOccupied ? 'occupied' : 'empty';
+      const heroClass = seat.is_hero ? 'hero' : '';
+      const pendingClass = hasPending ? 'has-pending' : '';
+      const indicatorClass = hasPending ? 'pending' : (isOccupied ? 'online' : 'offline');
+      const nameDisplay = isOccupied ? seat.name : 'Available';
+      const nameClass = isOccupied ? '' : 'empty-label';
+      const stackDisplay = isOccupied ? `R${seat.stack_zar.toFixed(2)}` : '';
+
+      const ariaLabel = isOccupied
+        ? `Seat ${seat.seat_no}, occupied by ${seat.name}, stack ${stackDisplay}`
+        : `Seat ${seat.seat_no}, available`;
+
+      return `
+        <div class="seat ${statusClass} ${heroClass} ${pendingClass}"
+             data-seat="${seat.seat_no}"
+             id="seat-${seat.seat_no}"
+             role="region"
+             aria-label="${ariaLabel}">
+
+          ${seat.is_dealer ? '<div class="dealer-button" title="Dealer" aria-label="Dealer">D</div>' : ''}
+
+          <div class="seat-header">
+            <span class="seat-number">
+              <span class="shape-indicator ${isOccupied ? 'circle-filled' : 'circle-outline'}"
+                    aria-hidden="true">
+                ${isOccupied ? '●' : '○'}
+              </span>
+              Seat ${seat.seat_no}
+            </span>
+            <span class="seat-status-indicator ${indicatorClass}"
+                  role="status"
+                  aria-label="${hasPending ? 'Pending command' : (isOccupied ? 'Occupied' : 'Empty')}">
+            </span>
+          </div>
+
+          <div class="seat-name ${nameClass}">${nameDisplay}</div>
+
+          ${stackDisplay ? `<div class="seat-stack" aria-label="Stack">${stackDisplay}</div>` : ''}
+
+          ${seat.pending_cmd ? `
+            <div class="pending-cmd" role="status" aria-live="polite">
+              <span class="shape-indicator circle-filled" aria-hidden="true">⏳</span>
+              <span>${seat.pending_cmd}</span>
+            </div>
+          ` : ''}
+
+          <div class="seat-actions">
+            <button class="btn-fold"
+                    onclick="queueCommand('${tableId}', ${seat.seat_no}, 'fold')"
+                    ${!isOccupied ? 'disabled' : ''}
+                    aria-label="Fold for seat ${seat.seat_no}">
+              Fold
+            </button>
+            <button class="btn-check"
+                    onclick="queueCommand('${tableId}', ${seat.seat_no}, 'check')"
+                    ${!isOccupied ? 'disabled' : ''}
+                    aria-label="Check for seat ${seat.seat_no}">
+              Check
+            </button>
+            <button class="btn-call"
+                    onclick="queueCommand('${tableId}', ${seat.seat_no}, 'call')"
+                    ${!isOccupied ? 'disabled' : ''}
+                    aria-label="Call for seat ${seat.seat_no}">
+              Call
+            </button>
+            <button class="btn-raise"
+                    onclick="queueCommand('${tableId}', ${seat.seat_no}, 'raise_max')"
+                    ${!isOccupied ? 'disabled' : ''}
+                    aria-label="Raise max for seat ${seat.seat_no}">
+              Max
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCards(cards) {
+      if (!cards || cards.length === 0) return '';
+
+      return cards.map(card => {
+        const suit = card.charAt(0);
+        const rank = card.substring(1).toUpperCase();
+        const suitSymbol = { h: '♥', d: '♦', c: '♣', s: '♠' }[suit] || suit;
+        const colorClass = (suit === 'h' || suit === 'd') ? 'red' : '';
+        const suitName = { h: 'hearts', d: 'diamonds', c: 'clubs', s: 'spades' }[suit] || suit;
+
+        return `<div class="card ${colorClass}" role="img" aria-label="${rank} of ${suitName}">${rank}${suitSymbol}</div>`;
+      }).join('');
+    }
+
+    let previousSeats = {};
+
+    function updateTable() {
+      fetch(API_BASE + '/table/latest')
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) {
+            addLogEntry('Failed to fetch table data', 'warning');
+            return;
+          }
+
+          const table = data.table;
+
+          // Hide loading, show table
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('seatsContainer').style.display = 'block';
+
+          // Update pot and street
+          document.getElementById('potDisplay').textContent = `Pot: R${table.pot_zar.toFixed(2)}`;
+          document.getElementById('streetDisplay').textContent = table.street || 'WAITING';
+
+          // Update board
+          const boardEl = document.getElementById('boardDisplay');
+          const board = table.board;
+          let boardCards = [...(board.flop || [])];
+          if (board.turn) boardCards.push(board.turn);
+          if (board.river) boardCards.push(board.river);
+          boardEl.innerHTML = renderCards(boardCards);
+
+          // Update seats
+          const seatsWrapper = document.getElementById('seatsWrapper');
+          const currentSeats = {};
+
+          table.seats.forEach(seat => {
+            currentSeats[seat.seat_no] = seat;
+          });
+
+          // Detect newly occupied seats for blink effect (max 2 flashes/sec, 3 iterations)
+          Object.keys(currentSeats).forEach(seatNo => {
+            const current = currentSeats[seatNo];
+            const previous = previousSeats[seatNo];
+
+            if (current.name && (!previous || !previous.name)) {
+              // New player sat down - apply blinker
+              setTimeout(() => {
+                const seatEl = document.getElementById(`seat-${seatNo}`);
+                if (seatEl) {
+                  seatEl.classList.add('blinker');
+                  // Remove after 1.5s (3 flashes at 0.5s each)
+                  setTimeout(() => seatEl.classList.remove('blinker'), 1500);
+                }
+              }, 100);
+
+              addLogEntry(`${current.name} joined at Seat ${seatNo}`, 'success');
+            }
+          });
+
+          // Render all seats (always show all 9 seats)
+          seatsWrapper.innerHTML = table.seats.map(seat =>
+            renderSeat(seat, table.table_id)
+          ).join('');
+
+          previousSeats = currentSeats;
+        })
+        .catch(err => {
+          addLogEntry(`Connection error: ${err.message}`, 'error');
+        });
+    }
+
+    // Initialize
+    document.getElementById('systemTime').textContent = new Date().toLocaleTimeString();
+
+    // Update table every 2 seconds
+    updateTable();
+    setInterval(updateTable, 2000);
+  </script>
+</body>
+</html>

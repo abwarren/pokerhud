@@ -1,0 +1,14 @@
+receiving incremental file list
+./
+admin_routes.py
+aggregate_merger.py
+app.py
+collector_routes.py
+data_models.py
+equity_routes.py
+heartbeat_tracker.py
+run_engine.sh
+seat_history.py
+
+sent 278 bytes  received 22,724 bytes  5,111.56 bytes/sec
+total size is 88,400  speedup is 3.84

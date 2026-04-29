@@ -1,0 +1,344 @@
+/* PLO Admin Panel Theme - Terminal Style */
+:root {
+  /* Background layers */
+  --bg-main: #0a0f1a;
+  --bg-panel: #0d1117;
+  --bg-card: #111827;
+  --bg-soft: #0f172a;
+
+  /* Borders */
+  --border: #1f2937;
+  --border-soft: #374151;
+
+  /* Text */
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --text-faint: #4b5563;
+
+  /* Signal colors */
+  --red: #D92D20;
+  --blue: #1570EF;
+  --purple: #7C3AED;
+  --amber: #D97706;
+  --green: #12B76A;
+  --indigo: #4F46E5;
+
+  /* Design tokens */
+  --radius: 8px;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Legacy aliases for compatibility */
+  --bg-primary: var(--bg-main);
+  --bg-secondary: var(--bg-panel);
+  --bg-tertiary: var(--bg-card);
+  --border-color: var(--border);
+  --accent-primary: var(--blue);
+  --accent-success: var(--green);
+  --accent-warning: var(--amber);
+  --accent-error: var(--red);
+  --accent-info: var(--indigo);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Utility Classes */
+.hidden {
+  display: none !important;
+}
+
+/* Signal System */
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.signal.spike, .signal.red {
+  background: rgba(217, 45, 32, 0.15);
+  border: 1px solid var(--red);
+  color: #ff6b6b;
+}
+
+.signal.freeze, .signal.blue {
+  background: rgba(21, 112, 239, 0.15);
+  border: 1px solid var(--blue);
+  color: #60a5fa;
+}
+
+.signal.fake-pace, .signal.purple {
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid var(--purple);
+  color: #a78bfa;
+}
+
+.signal.trap, .signal.amber {
+  background: rgba(217, 119, 6, 0.15);
+  border: 1px solid var(--amber);
+  color: #fbbf24;
+}
+
+.signal.reversal, .signal.green {
+  background: rgba(18, 183, 106, 0.15);
+  border: 1px solid var(--green);
+  color: #4ade80;
+}
+
+.signal.steam, .signal.indigo {
+  background: rgba(79, 70, 229, 0.15);
+  border: 1px solid var(--indigo);
+  color: #818cf8;
+}
+
+/* Badge Styles (compatible with old code) */
+.badge, .status-badge, .role-badge, .user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-badge {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-soft);
+}
+
+.status-badge.online {
+  background: rgba(18, 183, 106, 0.15);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+
+.status-badge.offline {
+  background: rgba(217, 45, 32, 0.15);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+
+.role-badge {
+  background: rgba(21, 112, 239, 0.15);
+  border: 1px solid var(--blue);
+  color: var(--blue);
+}
+
+.user-badge {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+/* Button Styles */
+.button, button {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  transition: all 0.15s;
+}
+
+.button:hover, button:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.button.active, button.active {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+.button.primary, button[type="submit"] {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+.button.primary:hover, button[type="submit"]:hover {
+  background: #1260d0;
+  border-color: #1260d0;
+}
+
+/* Form Styles */
+input, select {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--blue);
+  background: var(--bg-card);
+}
+
+/* Table Styles */
+.table, table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.table thead, table thead {
+  background: var(--bg-card);
+}
+
+.table th, table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td, table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.table tbody tr:hover, table tbody tr:hover {
+  background: rgba(21, 112, 239, 0.05);
+}
+
+/* Card Styles */
+.card, .summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.summary-title {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.summary-value {
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+/* Card variants */
+.card.positive .summary-value, .summary-card.positive .summary-value {
+  color: var(--green);
+}
+
+.card.negative .summary-value, .summary-card.negative .summary-value {
+  color: var(--red);
+}
+
+.card.neutral .summary-value, .summary-card.neutral .summary-value {
+  color: var(--blue);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* Filter Bar */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-panel);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.filter-bar input {
+  flex: 1;
+}
+
+.filter-bar select {
+  min-width: 140px;
+}
+
+/* Panel Styles */
+.panel {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+}
+
+/* Playing Card Styles */
+.playing-card {
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: inline-block;
+}
+
+.card-club {
+  background: var(--green);
+}
+
+.card-heart {
+  background: var(--red);
+}
+
+.card-diamond {
+  background: var(--blue);
+}
+
+.card-spade {
+  background: #2B2F38;
+}
+
+.card-rank {
+  color: white;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}

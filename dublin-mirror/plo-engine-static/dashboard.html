@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLO Infrastructure Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --card: #222633;
+    --border: #2d3348; --text: #e4e6f0; --muted: #8b90a5;
+    --green: #22c55e; --red: #ef4444; --amber: #f59e0b; --blue: #3b82f6;
+    --purple: #a855f7; --cyan: #06b6d4; --pink: #ec4899;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .header h1 { font-size: 1.5rem; font-weight: 700; }
+  .header h1 span { color: var(--muted); font-weight: 400; font-size: 0.85rem; margin-left: 8px; }
+  .header .meta { font-size: 0.78rem; color: var(--muted); text-align: right; }
+
+  /* Server Tabs */
+  .server-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .server-tab { padding: 10px 18px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 0.85rem; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+  .server-tab:hover { border-color: var(--blue); }
+  .server-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .server-tab .tab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .server-tab .tab-dot.down { background: var(--red); }
+  .server-tab .tab-sub { font-size: 0.7rem; color: var(--muted); }
+  .server-tab.active .tab-sub { color: rgba(255,255,255,0.7); }
+  .server-panel { display: none; }
+  .server-panel.active { display: block; }
+
+  /* Stats */
+  .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .stat .label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+  .stat .value { font-size: 1.3rem; font-weight: 700; font-family: monospace; }
+  .stat .sub { font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+
+  /* Sections */
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .section-title .count { background: var(--card); padding: 1px 7px; border-radius: 10px; font-size: 0.7rem; }
+
+  /* App Cards */
+  .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .app-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all 0.2s; position: relative; text-decoration: none; color: var(--text); display: block; }
+  .app-card:hover { border-color: var(--blue); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59,130,246,0.12); }
+  .app-card .icon { font-size: 1.4rem; margin-bottom: 6px; }
+  .app-card .name { font-size: 0.9rem; font-weight: 600; margin-bottom: 3px; }
+  .app-card .desc { font-size: 0.7rem; color: var(--muted); line-height: 1.3; }
+  .app-card .port { position: absolute; top: 10px; right: 10px; font-size: 0.6rem; color: var(--muted); font-family: monospace; background: var(--surface); padding: 2px 5px; border-radius: 4px; }
+  .app-card .dot { position: absolute; bottom: 10px; right: 10px; width: 7px; height: 7px; border-radius: 50%; }
+  .app-card .dot.up { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+  .app-card .dot.down { background: var(--red); }
+  .app-card .dot.unknown { background: var(--muted); }
+
+  /* Services Table */
+  .svc-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+  .svc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .svc-table th { text-align: left; font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .svc-table td { padding: 8px 10px; border-bottom: 1px solid rgba(45,51,72,0.4); }
+  .svc-table .port { font-family: monospace; color: var(--cyan); font-size: 0.78rem; }
+  .svc-table .proc { font-family: monospace; font-size: 0.7rem; color: var(--muted); }
+  .svc-table .st { display: flex; align-items: center; gap: 5px; }
+  .svc-table .d { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .svc-table .d.up { background: var(--green); }
+  .svc-table .d.dn { background: var(--red); }
+
+  /* Network Cards */
+  .net-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .eni-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .eni-card .eni-head { font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 400; }
+  .badge.pri { background: rgba(59,130,246,0.2); color: var(--blue); }
+  .badge.plr { background: rgba(168,85,247,0.2); color: var(--purple); }
+  .badge.web { background: rgba(6,182,212,0.2); color: var(--cyan); }
+  .badge.fe { background: rgba(236,72,153,0.2); color: var(--pink); }
+  .badge.dev { background: rgba(245,158,11,0.2); color: var(--amber); }
+  .ip-row { display: flex; justify-content: space-between; font-family: monospace; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid rgba(45,51,72,0.3); }
+  .ip-row:last-child { border: none; }
+  .priv { color: var(--muted); }
+  .pub { color: var(--green); }
+  .lbl { font-size: 0.6rem; color: var(--muted); min-width: 60px; text-align: right; }
+
+  /* Docker */
+  .docker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .dk { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .dk .dk-n { font-weight: 600; font-size: 0.85rem; margin-bottom: 3px; }
+  .dk .dk-i { font-family: monospace; font-size: 0.7rem; color: var(--muted); }
+  .dk .dk-s { font-size: 0.7rem; color: var(--green); margin-top: 4px; }
+  .dk .dk-p { font-family: monospace; font-size: 0.7rem; color: var(--cyan); margin-top: 2px; }
+
+  /* Sync Map */
+  .sync-map { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-family: monospace; font-size: 0.75rem; line-height: 1.8; overflow-x: auto; white-space: pre; }
+  .sync-map .arrow { color: var(--cyan); }
+  .sync-map .srv { color: var(--green); font-weight: 600; }
+  .sync-map .path { color: var(--amber); }
+  .sync-map .note { color: var(--muted); }
+
+  .footer { text-align: center; font-size: 0.65rem; color: var(--muted); margin-top: 20px; padding: 10px; }
+
+  @media (max-width: 600px) {
+    body { padding: 10px; }
+    .apps-grid { grid-template-columns: 1fr 1fr; }
+    .stats-bar { grid-template-columns: repeat(3, 1fr); }
+    .app-card .desc { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PLO Infrastructure <span>Dashboard</span></h1>
+  <div class="meta">3 servers &middot; 2 regions &middot; <span id="clock">--</span></div>
+</div>
+
+<!-- Server Tabs -->
+<div class="server-tabs">
+  <div class="server-tab active" onclick="switchTab('dublin')">
+    <span class="tab-dot" id="tab-dot-dub"></span>
+    <div>
+      <div>Dublin</div>
+      <div class="tab-sub">c5.4xlarge &middot; eu-west-1</div>
+    </div>
+  </div>
+  <div class="server-tab" onclick="switchTab('capetown')">
+    <span class="tab-dot" id="tab-dot-ct"></span>
+    <div>
+      <div>Cape Town</div>
+      <div class="tab-sub">t3.micro &middot; af-south-1</div>
+    </div>
+  </div>
+  <div class="server-tab" onclick="switchTab('local')">
+    <span class="tab-dot" id="tab-dot-local"></span>
+    <div>
+      <div>Local Dev</div>
+      <div class="tab-sub">Laptop &middot; SSH tunnels</div>
+    </div>
+  </div>
+  <div class="server-tab" onclick="switchTab('sync')">
+    <span class="tab-dot" style="background:var(--cyan)"></span>
+    <div>
+      <div>Sync Map</div>
+      <div class="tab-sub">Deploy &amp; data flow</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ DUBLIN ═══════════════ -->
+<div class="server-panel active" id="panel-dublin">
+  <div class="stats-bar">
+    <div class="stat"><div class="label">Instance</div><div class="value" style="font-size:1rem">c5.4xlarge</div><div class="sub">i-0ae0782f0d90be531</div></div>
+    <div class="stat"><div class="label">CPU</div><div class="value">16</div><div class="sub">vCPUs</div></div>
+    <div class="stat"><div class="label">Memory</div><div class="value">30 GB</div><div class="sub">2.5 GB used</div></div>
+    <div class="stat"><div class="label">Disk</div><div class="value">57%</div><div class="sub">82 / 145 GB</div></div>
+    <div class="stat"><div class="label">EIPs</div><div class="value">10</div><div class="sub">4 ENIs + ens10</div></div>
+    <div class="stat"><div class="label">Containers</div><div class="value">3</div><div class="sub">Docker</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Frontend Applications <span class="count">8</span></div>
+    <div class="apps-grid">
+      <a class="app-card" href="/engine/" target="_blank">
+        <div class="port">:5050</div>
+        <div class="icon">&#9654;</div>
+        <div class="name">Equity Engine</div>
+        <div class="desc">PLO4-7 + NLH exact equity. Batch, RNG, collab.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/remote" target="_blank">
+        <div class="port">:5000</div>
+        <div class="icon">&#128225;</div>
+        <div class="name">Remote Control</div>
+        <div class="desc">9-seat table. Actions, pre-actions, snapshot merge.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/" target="_blank">
+        <div class="port">:5001</div>
+        <div class="icon">&#127922;</div>
+        <div class="name">N4P System</div>
+        <div class="desc">Shell dashboard. Player mgmt, deploy, monitor.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/hud/" target="_blank">
+        <div class="port">:3001</div>
+        <div class="icon">&#128202;</div>
+        <div class="name">HUD Dashboard</div>
+        <div class="desc">Player stats, session tracking, analytics.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/tournaments/" target="_blank">
+        <div class="port">:3002</div>
+        <div class="icon">&#127942;</div>
+        <div class="name">Tournaments</div>
+        <div class="desc">Brackets, results, leaderboards.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/collector" target="_blank">
+        <div class="port">:6001</div>
+        <div class="icon">&#128451;</div>
+        <div class="name">Hand Collector</div>
+        <div class="desc">BOARD protocol, dedup, validation.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/pokerbet/" target="_blank">
+        <div class="port">:3001</div>
+        <div class="icon">&#127183;</div>
+        <div class="name">PokerBet Mirror</div>
+        <div class="desc">Site mirror dashboard.</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="/browser1/" target="_blank">
+        <div class="port">:6081-84</div>
+        <div class="icon">&#128421;</div>
+        <div class="name">Browser VNC</div>
+        <div class="desc">KasmVNC sessions 1-4.</div>
+        <div class="dot up"></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Backend Services <span class="count">10</span></div>
+    <div class="svc-wrap"><table class="svc-table">
+      <thead><tr><th>Service</th><th>Port</th><th>Process</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Remote Control API</td><td class="port">5000</td><td class="proc">python (Flask)</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>Engine Backend</td><td class="port">5050</td><td class="proc">gunicorn + eventlet</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>N4P System</td><td class="port">5001</td><td class="proc">python</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>HUD Web</td><td class="port">3001</td><td class="proc">python3 SimpleHTTP</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>Tournaments</td><td class="port">3002</td><td class="proc">python3 SimpleHTTP</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>PLO Test</td><td class="port">8081</td><td class="proc">gunicorn + eventlet</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>Multi-site API</td><td class="port">8400</td><td class="proc">python3</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>Multi-site Engine</td><td class="port">8100</td><td class="proc">python3</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>Collector</td><td class="port">6001</td><td class="proc">python</td><td class="st"><span class="d up"></span>Running</td></tr>
+        <tr><td>VNC Proxy 1-4</td><td class="port">6081-84</td><td class="proc">websockify</td><td class="st"><span class="d up"></span>Running</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Docker Containers <span class="count">3</span></div>
+    <div class="docker-grid">
+      <div class="dk"><div class="dk-n">nginx-proxy</div><div class="dk-i">nginx:alpine</div><div class="dk-s">Up (host network)</div><div class="dk-p">:80 :443 :8080</div></div>
+      <div class="dk"><div class="dk-n">hud-postgres</div><div class="dk-i">postgres:16-alpine</div><div class="dk-s">Up</div><div class="dk-p">:5432</div></div>
+      <div class="dk"><div class="dk-n">plo-equity-engine</div><div class="dk-i">plo-equity-engine:latest</div><div class="dk-s">Up</div><div class="dk-p">:3000</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Network &middot; ENI / EIP Map</div>
+    <div class="net-grid">
+      <div class="eni-card">
+        <div class="eni-head">ens5 <span class="badge pri">PRIMARY</span></div>
+        <div class="ip-row"><span class="priv">172.31.17.239</span><span class="pub">52.16.14.220</span><span class="lbl">nginx+remote</span></div>
+      </div>
+      <div class="eni-card">
+        <div class="eni-head">ens10 <span class="badge web">POTLIMITOMAHA</span></div>
+        <div class="ip-row"><span class="priv">172.31.29.19</span><span class="pub" style="color:var(--cyan)">52.51.80.68</span><span class="lbl">engine</span></div>
+      </div>
+      <div class="eni-card">
+        <div class="eni-head">ens6 <span class="badge plr">PLAYERS</span></div>
+        <div class="ip-row"><span class="priv">172.31.22.196</span><span class="pub">52.30.108.218</span><span class="lbl">kele1</span></div>
+        <div class="ip-row"><span class="priv">172.31.30.240</span><span class="pub">34.255.202.229</span><span class="lbl">kana</span></div>
+        <div class="ip-row"><span class="priv">172.31.30.123</span><span class="pub">54.73.232.255</span><span class="lbl">leni</span></div>
+      </div>
+      <div class="eni-card">
+        <div class="eni-head">ens7 <span class="badge plr">PLAYERS</span></div>
+        <div class="ip-row"><span class="priv">172.31.19.230</span><span class="pub" style="color:var(--muted)">-- freed --</span><span class="lbl">shax (removed)</span></div>
+        <div class="ip-row"><span class="priv">172.31.19.243</span><span class="pub">52.16.21.250</span><span class="lbl">pretty88</span></div>
+        <div class="ip-row"><span class="priv">172.31.31.124</span><span class="pub">52.18.155.19</span><span class="lbl">lont</span></div>
+      </div>
+      <div class="eni-card">
+        <div class="eni-head">ens8 <span class="badge plr">PLAYERS</span></div>
+        <div class="ip-row"><span class="priv">172.31.22.165</span><span class="pub">54.229.117.8</span><span class="lbl">daniellek</span></div>
+        <div class="ip-row"><span class="priv">172.31.28.209</span><span class="pub">52.214.188.207</span><span class="lbl">pile</span></div>
+        <div class="ip-row"><span class="priv">172.31.29.244</span><span class="pub">99.80.41.63</span><span class="lbl">hele</span></div>
+        <div class="ip-row"><span class="priv">172.31.26.213</span><span class="pub" style="color:var(--amber)">unassigned</span><span class="lbl">free</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CAPE TOWN ═══════════════ -->
+<div class="server-panel" id="panel-capetown">
+  <div class="stats-bar">
+    <div class="stat"><div class="label">Instance</div><div class="value" style="font-size:1rem">t3.micro</div><div class="sub">i-0b34345558e6404c7</div></div>
+    <div class="stat"><div class="label">CPU</div><div class="value">2</div><div class="sub">vCPUs</div></div>
+    <div class="stat"><div class="label">Region</div><div class="value" style="font-size:1rem">af-south-1</div><div class="sub">Cape Town</div></div>
+    <div class="stat"><div class="label">IP</div><div class="value" style="font-size:0.9rem">15.240.44.80</div><div class="sub">nuts4poker.com</div></div>
+    <div class="stat"><div class="label">Role</div><div class="value" style="font-size:1rem">Frontend</div><div class="sub">nginx + tunnels</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Frontend Applications <span class="count">4</span></div>
+    <div class="apps-grid">
+      <a class="app-card" href="https://nuts4poker.com/engine/" target="_blank">
+        <div class="port">:5055 tunnel</div>
+        <div class="icon">&#9654;</div>
+        <div class="name">Engine (via tunnel)</div>
+        <div class="desc">nuts4poker.com/engine/ &rarr; SSH tunnel to Dublin :5050</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="https://nuts4poker.com/remote" target="_blank">
+        <div class="port">static</div>
+        <div class="icon">&#128225;</div>
+        <div class="name">Remote Control</div>
+        <div class="desc">nuts4poker.com/remote &rarr; static HTML, API via tunnel</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="https://nuts4poker.com/collector" target="_blank">
+        <div class="port">static</div>
+        <div class="icon">&#128451;</div>
+        <div class="name">Hand Collector</div>
+        <div class="desc">nuts4poker.com/collector</div>
+        <div class="dot up"></div>
+      </a>
+      <a class="app-card" href="https://nuts4poker.com/" target="_blank">
+        <div class="port">:443</div>
+        <div class="icon">&#127760;</div>
+        <div class="name">nuts4poker.com</div>
+        <div class="desc">Main domain. Redirects / &rarr; /engine</div>
+        <div class="dot up"></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Backend Services <span class="count">5</span></div>
+    <div class="svc-wrap"><table class="svc-table">
+      <thead><tr><th>Service</th><th>Port</th><th>Process</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>nginx (TLS termination)</td><td class="port">80/443</td><td class="proc">nginx</td><td>Let's Encrypt, proxies to backends</td></tr>
+        <tr><td>Engine Backend</td><td class="port">5050</td><td class="proc">gunicorn</td><td>Local engine (2 vCPU)</td></tr>
+        <tr><td>Dublin Engine Tunnel</td><td class="port">5055</td><td class="proc">ssh tunnel</td><td>&rarr; Dublin:5050 (16 vCPU)</td></tr>
+        <tr><td>Dublin API Tunnel</td><td class="port">5000</td><td class="proc">ssh tunnel</td><td>&rarr; Dublin:5000 (Remote API)</td></tr>
+        <tr><td>Static File Server</td><td class="port">8080/8081</td><td class="proc">python3 http.server</td><td>Dev static serving</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Key Paths</div>
+    <div class="svc-wrap" style="padding: 12px; font-family: monospace; font-size: 0.75rem; line-height: 1.8;">
+      /opt/plo-engine/static/ &mdash; Engine UI (index.html + assets)<br>
+      /opt/plo-engine/static/remote.html &mdash; Remote Control UI<br>
+      /opt/plo-collector/ &mdash; Hand Collector UI<br>
+      /etc/nginx/sites-enabled/nuts4poker-main.conf &mdash; nginx config<br>
+      SSH: ssh -i ~/.ssh/LIN_KEY_AIR.pem ubuntu@15.240.44.80
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ LOCAL DEV ═══════════════ -->
+<div class="server-panel" id="panel-local">
+  <div class="stats-bar">
+    <div class="stat"><div class="label">Machine</div><div class="value" style="font-size:1rem">Laptop</div><div class="sub">Development</div></div>
+    <div class="stat"><div class="label">Tunnels</div><div class="value">2</div><div class="sub">Dublin :5000 :5050</div></div>
+    <div class="stat"><div class="label">Frontend</div><div class="value" style="font-size:1rem">Vite</div><div class="sub">React SPA dev</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Local Services</div>
+    <div class="svc-wrap"><table class="svc-table">
+      <thead><tr><th>Service</th><th>Port</th><th>Process</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Poker Assistant</td><td class="port">5050</td><td class="proc">gunicorn + eventlet</td><td>/opt/poker-assistant/</td></tr>
+        <tr><td>Dublin API Tunnel</td><td class="port">5000</td><td class="proc">ssh tunnel</td><td>&rarr; Dublin:5000</td></tr>
+        <tr><td>Multi-site Engine</td><td class="port">8100</td><td class="proc">python</td><td>Local dev instance</td></tr>
+        <tr><td>Multi-site Remote</td><td class="port">8300</td><td class="proc">python</td><td>Local dev instance</td></tr>
+        <tr><td>Multi-site Collector</td><td class="port">8200</td><td class="proc">python</td><td>Local dev instance</td></tr>
+        <tr><td>Multi-site API</td><td class="port">8400</td><td class="proc">python</td><td>Local dev instance</td></tr>
+        <tr><td>nginx (dev)</td><td class="port">80/8080</td><td class="proc">nginx</td><td>Local proxy</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Key Paths</div>
+    <div class="svc-wrap" style="padding: 12px; font-family: monospace; font-size: 0.75rem; line-height: 1.8;">
+      ~/3_DEPLOYMENTS/BACKEND/plo-test/frontend/ &mdash; Engine React source<br>
+      ~/2_DEVELOPMENT/scripts/plo/engine_scripts/ &mdash; Equity engine scripts<br>
+      ~/1_PROJECTS/plo/PLOEXT/ &mdash; Chrome extension source<br>
+      /opt/poker-assistant/ &mdash; Poker assistant backend<br>
+      /opt/pokerhud/ &mdash; PokerHUD source
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SYNC MAP ═══════════════ -->
+<div class="server-panel" id="panel-sync">
+  <div class="section">
+    <div class="section-title">Deployment &amp; Sync Flow</div>
+    <div class="sync-map"><span class="srv">LOCAL (Laptop)</span>
+  <span class="path">~/3_DEPLOYMENTS/.../frontend/</span>  <span class="note"># React source</span>
+  npm run build <span class="arrow">&rarr;</span> <span class="path">../static/</span>
+      <span class="arrow">|</span>
+      <span class="arrow">| scp</span>
+      <span class="arrow">v</span>
+<span class="srv">CAPE TOWN</span> (15.240.44.80)  <span class="note"># nuts4poker.com frontend</span>
+  <span class="path">/opt/plo-engine/static/</span>  <span class="note"># Engine UI + Remote + Assets</span>
+  <span class="path">/opt/plo-collector/</span>       <span class="note"># Collector UI</span>
+  nginx :443 <span class="arrow">&rarr;</span> proxy to local :5055 (engine) + :5000 (remote API)
+      <span class="arrow">|</span>
+      <span class="arrow">| SSH tunnels (systemd persistent)</span>
+      <span class="arrow">v</span>
+<span class="srv">DUBLIN</span> (52.16.14.220 / 52.51.80.68)  <span class="note"># Backend + compute</span>
+  <span class="path">/opt/plo-engine-backend/</span>  <span class="note"># Engine backend (gunicorn :5050)</span>
+  <span class="path">/opt/plo-equity/</span>          <span class="note"># Remote Control Flask (:5000)</span>
+  <span class="path">/opt/plo-equity/static/</span>   <span class="note"># Engine UI (Dublin copy)</span>
+  <span class="path">/opt/n4p-frontend/</span>        <span class="note"># N4P System (:5001)</span>
+  nginx-proxy (Docker) :443 <span class="arrow">&rarr;</span> potlimitomaha.xyz
+</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Deploy Commands</div>
+    <div class="svc-wrap" style="padding: 12px; font-family: monospace; font-size: 0.75rem; line-height: 2;">
+      <span style="color:var(--muted)"># Build frontend locally</span><br>
+      cd ~/3_DEPLOYMENTS/BACKEND/plo-test/frontend && npm run build<br><br>
+      <span style="color:var(--muted)"># Deploy to Cape Town (nuts4poker.com)</span><br>
+      scp -i ~/.ssh/LIN_KEY_AIR.pem -r ../static/* ubuntu@15.240.44.80:/opt/plo-engine/static/<br><br>
+      <span style="color:var(--muted)"># Deploy to Dublin (potlimitomaha.xyz)</span><br>
+      scp -i /home/ploxyz.pem -r ../static/* ubuntu@52.16.14.220:/opt/plo-equity/static/<br>
+      ssh -i /home/ploxyz.pem ubuntu@52.16.14.220 "cp /opt/plo-equity/static/index.html /opt/plo-equity/static/engine-index.html"<br><br>
+      <span style="color:var(--muted)"># Deploy engine scripts to Dublin</span><br>
+      scp -i /home/ploxyz.pem ~/2_DEVELOPMENT/scripts/plo/engine_scripts/*.py ubuntu@52.16.14.220:/opt/plo-engine-backend/scripts/<br><br>
+      <span style="color:var(--muted)"># Restart engine backend on Dublin</span><br>
+      ssh -i /home/ploxyz.pem ubuntu@52.16.14.220 "kill $(pgrep -f 'plo-engine-backend.*gunicorn') && cd /opt/plo-engine-backend && nohup venv/bin/gunicorn -w 1 -k eventlet --bind 127.0.0.1:5050 --timeout 300 app:app &"<br><br>
+      <span style="color:var(--muted)"># Reload nginx on Dublin</span><br>
+      ssh -i /home/ploxyz.pem ubuntu@52.16.14.220 "docker exec nginx-proxy nginx -s reload"
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">SSH Access</div>
+    <div class="svc-wrap" style="padding: 12px; font-family: monospace; font-size: 0.75rem; line-height: 2;">
+      <span style="color:var(--green)">Cape Town:</span> ssh -i ~/.ssh/LIN_KEY_AIR.pem ubuntu@15.240.44.80<br>
+      <span style="color:var(--green)">Dublin:</span> ssh -i /home/ploxyz.pem ubuntu@52.16.14.220<br>
+      <span style="color:var(--green)">Dublin (sshpass):</span> sshpass -p prodserver ssh ubuntu@52.51.80.68 <span style="color:var(--muted)"># from 102.249.0.0/16</span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Auto-refreshes every 30s &middot; Last: <span id="ts">--</span></div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.server-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.server-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+  document.getElementById('ts').textContent = new Date().toLocaleTimeString();
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Health checks
+async function checkHealth() {
+  try {
+    const r = await fetch('/health', { signal: AbortSignal.timeout(3000) });
+    document.getElementById('tab-dot-dub').className = 'tab-dot' + (r.ok ? '' : ' down');
+  } catch { document.getElementById('tab-dot-dub').className = 'tab-dot down'; }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
