@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="data:,">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>W4P Remote Control</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-card: #161b22;
+      --bg-card-active: #1c2333;
+      --border: #30363d;
+      --border-active: #58a6ff;
+      --text: #e0e0e0;
+      --text-dim: #8b949e;
+      --text-bright: #f0f6fc;
+      --green: #3fb950;
+      --red: #f85149;
+      --blue: #58a6ff;
+      --yellow: #d29922;
+      --radius: 8px;
+      --transition: 120ms ease;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .top-bar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 4px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      height: 32px;
+    }
+    .top-bar-left { display: flex; align-items: center; gap: 12px; }
+    .top-bar-title { font-size: 13px; font-weight: 700; color: var(--blue); letter-spacing: 0.5px; }
+    .conn-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; transition: background var(--transition); }
+    .conn-dot.connected { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .conn-dot.connecting { background: var(--yellow); animation: pulse 1.5s infinite; }
+    .conn-dot.disconnected { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .top-bar-right { display: flex; align-items: center; gap: 8px; }
+    .chip {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 10px; font-size: 11px; color: var(--text-dim);
+    }
+    .chip .v { color: var(--text); }
+
+    /* ── MAIN ── */
+    .main { flex: 1; overflow-y: auto; padding: 8px 8px 60px 8px; }
+    .zero-state {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; color: var(--text-dim); font-size: 14px;
+      grid-column: 1 / -1;
+    }
+
+    /* ── 3x3 GRID ── */
+    #heroes-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    /* ── HERO CARD (compact grid) ── */
+    .hero-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color var(--transition), background var(--transition);
+      display: flex; flex-direction: column;
+      min-width: 0;
+    }
+    .hero-card.active {
+      border-color: var(--border-active);
+      background: var(--bg-card-active);
+    }
+    .hero-header {
+      display: flex; align-items: center; flex-wrap: wrap;
+      padding: 5px 8px; gap: 4px 8px; cursor: default;
+    }
+    .hero-seat-badge {
+      background: rgba(88,166,255,0.15); color: var(--blue);
+      font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+    }
+    .hero-name {
+      font-size: 11px; font-weight: 600; color: var(--text-bright);
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .hero-stack { font-size: 11px; font-weight: 600; color: var(--green); white-space: nowrap; }
+    .hero-turn-badge {
+      background: var(--yellow); color: #000;
+      font-size: 8px; font-weight: 800; padding: 1px 5px; border-radius: 3px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      opacity: 0; max-width: 0; overflow: hidden;
+      transition: opacity var(--transition), max-width var(--transition);
+    }
+    .hero-card.active .hero-turn-badge { opacity: 1; max-width: 80px; }
+    .pre-actions { display: flex; gap: 5px; }
+    .pre-actions label {
+      display: flex; align-items: center; gap: 2px;
+      font-size: 9px; color: var(--text-dim); cursor: pointer; user-select: none;
+    }
+    .pre-actions input[type="checkbox"] { width: 12px; height: 12px; accent-color: var(--blue); cursor: pointer; }
+
+    /* ── EXPANDED BODY — height transition ── */
+    .hero-body {
+      max-height: 0; overflow: hidden; padding: 0 8px;
+      transition: max-height var(--transition), padding var(--transition);
+    }
+    .hero-card.active .hero-body {
+      max-height: 400px; padding: 0 8px 6px 8px;
+    }
+    .cards-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .cards-group { display: flex; gap: 2px; }
+    .cards-label { font-size: 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1px; }
+    .card-mini {
+      width: 26px; height: 36px; background: #fff; border-radius: 3px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 10px; line-height: 1;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.4); border: 1px solid #ddd;
+    }
+    .card-mini .suit { font-size: 10px; }
+    .card-mini.red { color: #d32f2f; }
+    .card-mini.blue { color: #1976d2; }
+    .card-mini.green { color: #2e7d32; }
+    .card-mini.black { color: #212121; }
+    .board-sep { width: 1px; height: 22px; background: var(--border); }
+    .info-line { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .info-line .val { color: var(--text); font-weight: 600; }
+
+    /* ── ACTION BUTTONS (compact) ── */
+    .action-btns { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+    .act-btn {
+      padding: 4px 10px; border: none; border-radius: 4px;
+      font-size: 10px; font-weight: 700; cursor: pointer;
+      transition: filter var(--transition), transform var(--transition);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .act-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .act-btn:active { transform: translateY(0); }
+    .act-fold { background: #6e4040; color: #f88; }
+    .act-check { background: #2d5a3d; color: #7ddf8d; }
+    .act-call { background: #2d4a5a; color: #7dc8df; }
+    .act-raise { background: #5a4a2d; color: #dfcb7d; }
+    .act-allin { background: #8b3a3a; color: #fff; }
+
+    /* ── SLIDER (compact) ── */
+    .slider-area { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; flex-wrap: wrap; }
+    .slider-presets { display: flex; gap: 2px; }
+    .preset-btn {
+      padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px;
+      background: transparent; color: var(--text-dim); font-size: 9px; font-weight: 600;
+      cursor: pointer; transition: all var(--transition);
+    }
+    .preset-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+    .slider-input { flex: 1; min-width: 60px; height: 4px; accent-color: var(--blue); cursor: pointer; }
+    .amt-input {
+      width: 58px; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 3px; color: var(--text); font-size: 10px; font-weight: 600;
+      padding: 2px 4px; text-align: right;
+    }
+    .slider-range { font-size: 8px; color: var(--text-dim); text-align: center; }
+
+    /* ── BOTTOM BAR ── */
+    .bottom-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--bg-card); border-top: 1px solid var(--border);
+      padding: 4px 10px; display: flex; align-items: center; gap: 6px;
+      z-index: 100; transition: opacity var(--transition), transform var(--transition);
+    }
+    .bottom-bar.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+    .bottom-bar-label { font-size: 10px; font-weight: 600; color: var(--text-dim); white-space: nowrap; min-width: 70px; }
+    .bottom-bar-label .bname { color: var(--blue); }
+    .bottom-bar-actions { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+    .bottom-bar .act-btn { padding: 3px 8px; font-size: 9px; }
+    .bottom-bar .slider-area { flex: 1; margin-bottom: 0; }
+    .bottom-bar .preset-btn { padding: 1px 5px; font-size: 8px; }
+    .bottom-bar .amt-input { width: 50px; font-size: 9px; }
+
+    .pending-badge {
+      display: inline-block; background: rgba(210,153,34,0.2); color: var(--yellow);
+      font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: 6px;
+    }
+
+    /* ── LOG ── */
+    .log-toggle {
+      background: none; border: 1px solid var(--border); color: var(--text-dim);
+      font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+    }
+    .log-toggle:hover { color: var(--text); }
+    .log-panel {
+      display: none; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px; margin-bottom: 8px;
+      max-height: 140px; overflow-y: auto; font-family: monospace; font-size: 11px;
+    }
+    .log-panel.open { display: block; }
+    .log-entry { padding: 2px 0; color: var(--text-dim); display: flex; justify-content: space-between; }
+    .log-entry .status-ok { color: var(--green); }
+    .log-entry .status-err { color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <span class="top-bar-title">W4P REMOTE</span>
+      <div class="conn-badge">
+        <div class="conn-dot disconnected" id="conn-dot"></div>
+        <span id="conn-text">Connecting...</span>
+      </div>
+    </div>
+    <div class="top-bar-right">
+      <span class="chip">TABLE <span class="v" id="val-table">--</span></span>
+      <span class="chip">STREET <span class="v" id="val-street">--</span></span>
+      <span class="chip">POT <span class="v" id="val-pot">--</span></span>
+      <button class="log-toggle" onclick="toggleLog()">LOG</button>
+    </div>
+  </div>
+
+  <div class="main" id="main">
+    <div class="log-panel" id="log-panel"></div>
+    <div id="heroes-container">
+      <div class="zero-state">No connected players</div>
+    </div>
+  </div>
+
+  <div class="bottom-bar hidden" id="bottom-bar">
+    <div class="bottom-bar-label"><span class="bname" id="bb-name">--</span> <span id="bb-stack"></span></div>
+    <div class="bottom-bar-actions" id="bb-actions"></div>
+  </div>
+
+  <script>
+    // ── CONFIG ──
+    const API_BASE = '/api';
+    const POLL_MS = 300;         // 300ms UI poll
+    const IDLE_POLL_MS = 500;    // idle
+    const IDLE_THRESHOLD = 30000;
+    const FETCH_TIMEOUT = 5000;
+
+    // ── STATE ──
+    let pollTimer = null;
+    let currentPoll = POLL_MS;
+    let lastActivityTime = Date.now();
+    let lastSnapshotHash = null;
+    let consecutiveFailures = 0;
+    let commandLog = [];
+    let currentTableData = null;
+    let lastHandId = null;
+
+    // Diff state: track what's currently rendered
+    let renderedHeroes = {};      // { seatNo: { hash, isActive } }
+    let renderedActiveSeat = null;
+    let renderedBBSeat = null;    // bottom bar active seat
+    const preActions = {};
+    const autoCCPreflop = {};        // { seatNo: true } — auto check/call preflop only
+    const autoCCPreflopFired = {};   // { seatNo: handKey } — prevent double-fire per hand
+
+    const log = (lvl, ...args) => console.log(`[${new Date().toISOString().substr(11,12)}][REMOTE][${lvl}]`, ...args);
+
+    // ── CARD RENDERING ──
+    const SUIT_MAP = { h:{sym:'\u2665',cls:'red'}, d:{sym:'\u2666',cls:'blue'}, c:{sym:'\u2663',cls:'green'}, s:{sym:'\u2660',cls:'black'} };
+    function renderCard(c) {
+      if (!c || c === '??' || c === 'back') return '';
+      const s = c.slice(-1).toLowerCase(), r = c.slice(0,-1).toUpperCase();
+      const i = SUIT_MAP[s] || {sym:s,cls:'black'};
+      return `<div class="card-mini ${i.cls}"><span class="rank">${r}</span><span class="suit">${i.sym}</span></div>`;
+    }
+
+    // ── NORMALIZE ──
+    function normalizeTable(raw) {
+      const t = {};
+      t.table_id = raw.table_id || 'unknown';
+      t.table_name = raw.table_name || null;
+      t.hand_id = raw.hand_id || null;
+      if (raw.pot_zar !== undefined && raw.pot_zar !== null) t.pot = raw.pot_zar;
+      else if (typeof raw.pot === 'string') t.pot = parseFloat(raw.pot.replace(/[^0-9.]/g,''))||0;
+      else t.pot = typeof raw.pot === 'number' ? raw.pot : 0;
+
+      t.street = raw.street || null;
+      if (Array.isArray(raw.board)) t.board = raw.board;
+      else if (raw.board && typeof raw.board === 'object') {
+        t.board = [...(raw.board.flop||[])];
+        if (raw.board.turn) t.board.push(raw.board.turn);
+        if (raw.board.river) t.board.push(raw.board.river);
+      } else t.board = [];
+      if (!t.street) {
+        if (t.board.length>=5) t.street='RIVER'; else if (t.board.length===4) t.street='TURN';
+        else if (t.board.length>=3) t.street='FLOP'; else t.street='PREFLOP';
+      }
+      t.dealer_seat = raw.dealer_seat;
+      t.active_seat = raw.active_seat !== undefined ? raw.active_seat : null;
+
+      t.heroes = [];
+      (raw.seats||[]).forEach(s => {
+        const seat = {};
+        seat.seat_no = s.seat_no||s.seat_index||s.seat||0;
+        seat.name = s.name||null;
+        seat.is_hero = s.is_hero||false;
+        seat.is_self_player = s.is_self_player||false;
+        if (!seat.is_self_player && !seat.is_hero) return;
+        if (!seat.name || seat.name==='Empty') return;
+        if (s.stack_zar!==undefined) seat.stack=s.stack_zar;
+        else if (typeof s.stack==='string') seat.stack=parseFloat(s.stack.replace(/[^0-9.]/g,''))||0;
+        else seat.stack = typeof s.stack==='number'?s.stack:0;
+        seat.cards = s.hole_cards||s.cards||[];
+        seat.is_dealer = s.is_dealer||(raw.dealer_seat===seat.seat_no);
+        seat.sitting_out = s.sitting_out||false;
+        seat.pending_cmd = s.pending_cmd||null;
+        seat.available_actions = s.available_actions||[];
+        seat.buttons = s.buttons||{};
+        seat.bet = typeof s.bet==='string'?parseFloat(s.bet.replace(/[^0-9.]/g,''))||0:(s.bet||0);
+        t.heroes.push(seat);
+      });
+      return t;
+    }
+
+    // ── HERO HASH (for diff) ──
+    function heroHash(h, isActive, table) {
+      return JSON.stringify({
+        n:h.name, s:h.stack, c:h.cards, aa:h.available_actions,
+        pc:h.pending_cmd, d:h.is_dealer, so:h.sitting_out, bt:h.bet,
+        act:isActive, b:table.board, st:table.street, p:table.pot,
+        ba:isActive?(h.buttons.actions||[]).map(a=>a.action+':'+(a.amount||'')).join(','):'',
+        sl:isActive?JSON.stringify(h.buttons.slider||{}):'',
+        pre:preActions[h.seat_no]||''
+      });
+    }
+
+    // ── CHECK NEW HAND → RESET PRE-ACTIONS ──
+    function checkHandChange(table) {
+      const hid = table.hand_id || table.table_id + '_' + table.street;
+      if (lastHandId !== null && lastHandId !== hid) {
+        Object.keys(preActions).forEach(k => delete preActions[k]);
+        log('INFO', 'New hand, pre-actions cleared');
+      }
+      lastHandId = hid;
+    }
+
+    // ── BUILD HERO CARD HTML ──
+    function buildHeroCard(hero, isActive, table) {
+      const preAction = preActions[hero.seat_no]||null;
+      let h = '';
+
+      // DEBUG: visible action count per seat (REMOVE after diagnosis)
+      h += `<div style="font-size:10px;color:#ff0;background:#333;padding:2px 12px;font-family:monospace;">`;
+      h += `DEBUG: actions.length=${hero.available_actions.length} | isActive=${isActive} | seat=${hero.seat_no}`;
+      h += ` | btns=${(hero.buttons.actions||[]).length}`;
+      h += `</div>`;
+
+      // Header
+      h += `<div class="hero-header">`;
+      h += `<span class="hero-seat-badge">S${hero.seat_no}</span>`;
+      h += `<span class="hero-name">${hero.name}${hero.is_dealer?' (D)':''}</span>`;
+      if (hero.pending_cmd) h += `<span class="pending-badge">CMD: ${hero.pending_cmd}</span>`;
+      h += `<span class="hero-turn-badge">YOUR TURN</span>`;
+      h += `<span class="hero-stack">R${hero.stack.toFixed(2)}</span>`;
+      h += `<div class="pre-actions">`;
+      h += `<label><input type="checkbox" onchange="setPreAction(${hero.seat_no},'cf',this)" ${preAction==='cf'?'checked':''}><span>C/F</span></label>`;
+      h += `<label><input type="checkbox" onchange="setPreAction(${hero.seat_no},'cc',this)" ${preAction==='cc'?'checked':''}><span>C/C</span></label>`;
+      h += `</div></div>`;
+
+      // Body (always present in DOM — CSS controls visibility via max-height)
+      h += `<div class="hero-body">`;
+      if (isActive) {
+        h += `<div class="cards-row">`;
+        h += `<div><div class="cards-label">Hand</div><div class="cards-group">${hero.cards.map(c=>renderCard(c)).join('')}</div></div>`;
+        if (table.board.length>0) {
+          h += `<div class="board-sep"></div>`;
+          h += `<div><div class="cards-label">Board</div><div class="cards-group">${table.board.map(c=>renderCard(c)).join('')}</div></div>`;
+        }
+        h += `</div>`;
+        h += `<div class="info-line"><span>Street: <span class="val">${table.street}</span></span><span>Pot: <span class="val">R${table.pot.toFixed(2)}</span></span>`;
+        if (hero.bet>0) h += `<span>Bet: <span class="val">R${hero.bet.toFixed(2)}</span></span>`;
+        h += `</div>`;
+        h += buildActionButtons(hero, table);
+      }
+      h += `</div>`;
+      return h;
+    }
+
+    // ── BUILD ACTION BUTTONS ──
+    function buildActionButtons(hero, table, prefix) {
+      prefix = prefix||'';
+      const actions = new Set((hero.available_actions||[]).map(a=>a.toLowerCase()));
+      const btns = hero.buttons||{};
+      const btnActions = btns.actions||[];
+      const slider = btns.slider||{};
+      const callBtn = btnActions.find(a=>a.action==='call');
+      const callAmt = callBtn&&callBtn.amount?' R'+callBtn.amount:'';
+      const hasFold=actions.has('fold'), hasCheck=actions.has('check'), hasCall=actions.has('call');
+      const hasRaise=actions.has('raise'), hasBet=actions.has('bet');
+      const sliderMin=slider.min||0, sliderMax=slider.max||Math.max(hero.stack,1);
+      const sliderVal=slider.current||sliderMin||0;
+      const sn=hero.seat_no, tid=table.table_id;
+
+      let h='<div class="action-btns">';
+      if (hasFold) h+=`<button class="act-btn act-fold" onclick="sendCmd('${tid}',${sn},'fold')">FOLD</button>`;
+      if (hasCheck) h+=`<button class="act-btn act-check" onclick="sendCmd('${tid}',${sn},'check')">CHECK</button>`;
+      if (hasCall) h+=`<button class="act-btn act-call" onclick="sendCmd('${tid}',${sn},'call')">CALL${callAmt}</button>`;
+      if (hasRaise||hasBet) {
+        const lbl=hasBet?'BET':'RAISE';
+        h+=`<button class="act-btn act-raise" onclick="sendSeatRaise('${tid}',${sn},'${prefix}')">${lbl}</button>`;
+        h+=`<button class="act-btn act-allin" onclick="sendCmd('${tid}',${sn},'allin')">ALL-IN</button>`;
+      }
+      h+='</div>';
+      if (hasRaise||hasBet) {
+        const id=prefix+'slider-'+sn, amtId=prefix+'amt-'+sn;
+        h+=`<div class="slider-area"><div class="slider-presets">`;
+        h+=`<button class="preset-btn" onclick="setPresetAmt('${id}','${amtId}',${sliderMin})">MIN</button>`;
+        h+=`<button class="preset-btn" onclick="setPresetAmt('${id}','${amtId}',${Math.round(table.pot*0.5*100)/100})">&frac12;</button>`;
+        h+=`<button class="preset-btn" onclick="sendCmd('${tid}',${sn},'pot')">POT</button>`;
+        h+=`<button class="preset-btn" onclick="setPresetAmt('${id}','${amtId}',${sliderMax})">MAX</button>`;
+        h+=`</div><input type="range" class="slider-input" id="${id}" min="${sliderMin}" max="${sliderMax}" step="0.01" value="${sliderVal}" oninput="document.getElementById('${amtId}').value=parseFloat(this.value).toFixed(2)">`;
+        h+=`<input type="number" class="amt-input" id="${amtId}" step="0.01" value="${parseFloat(sliderVal).toFixed(2)}" oninput="document.getElementById('${id}').value=this.value"></div>`;
+        h+=`<div class="slider-range">R${sliderMin} — R${sliderMax}</div>`;
+      }
+      return h;
+    }
+
+    // ── DIFF-BASED RENDER ──
+    function render(rawTable) {
+      const table = normalizeTable(rawTable);
+      currentTableData = rawTable;
+      checkHandChange(table);
+
+      // ── STEP 1: HARD UI TEST — force actions on first hero ──
+      // REMOVE THIS BLOCK after proving UI works
+      if (table.heroes.length > 0) {
+        const _th = table.heroes[0];
+        _th.available_actions = ["fold","call","raise"];
+        _th.buttons = {
+          actions: [
+            {action:"fold",text:"Fold",amount:null,selector:".control-b-view-p.fold-c"},
+            {action:"call",text:"Call 2.00",amount:2.00,selector:".control-b-view-p.call-c"},
+            {action:"raise",text:"Raise",amount:null,selector:".control-b-view-p.raise-c"}
+          ],
+          presets: [],
+          slider: {visible:true, current:4, min:4, max:100, step:1}
+        };
+        table.active_seat = _th.seat_no;
+        console.log('[UI-TEST] FORCED actions on', _th.name, 'seat', _th.seat_no, 'actions:', _th.available_actions);
+      }
+
+      // Update top bar (cheap text updates)
+      document.getElementById('val-table').textContent = table.table_name||table.table_id||'--';
+      document.getElementById('val-street').textContent = table.street;
+      document.getElementById('val-pot').textContent = table.pot>0?'R'+table.pot.toFixed(2):'--';
+
+      const container = document.getElementById('heroes-container');
+
+      // Zero state
+      if (table.heroes.length===0) {
+        if (!container.querySelector('.zero-state')) {
+          container.innerHTML = '<div class="zero-state">No connected players</div>';
+          renderedHeroes = {};
+          renderedActiveSeat = null;
+        }
+        updateBottomBar(null, table);
+        return;
+      }
+
+      // Find ONE active hero
+      let activeHero = null;
+      table.heroes.forEach(h => {
+        if (table.active_seat!==null && table.active_seat!==undefined &&
+            h.seat_no===table.active_seat && h.available_actions.length>0 && !h.sitting_out) {
+          activeHero = h;
+        }
+      });
+      const activeSeatNo = activeHero ? activeHero.seat_no : null;
+
+      // Build set of current hero seat numbers
+      const currentSeats = new Set(table.heroes.map(h=>h.seat_no));
+
+      // Remove hero cards no longer present
+      const existingCards = container.querySelectorAll('.hero-card');
+      existingCards.forEach(el => {
+        const sn = parseInt(el.dataset.seat);
+        if (!currentSeats.has(sn)) {
+          el.remove();
+          delete renderedHeroes[sn];
+        }
+      });
+
+      // Update or create each hero card
+      table.heroes.forEach(hero => {
+        const isActive = activeSeatNo === hero.seat_no;
+        const hash = heroHash(hero, isActive, table);
+        const existing = container.querySelector(`.hero-card[data-seat="${hero.seat_no}"]`);
+
+        if (existing) {
+          // Check if state changed
+          if (renderedHeroes[hero.seat_no] && renderedHeroes[hero.seat_no].hash === hash) {
+            // Only toggle active class if needed (cheap)
+            if (isActive && !existing.classList.contains('active')) existing.classList.add('active');
+            if (!isActive && existing.classList.contains('active')) existing.classList.remove('active');
+            return; // No change — skip DOM update
+          }
+          // State changed — update innerHTML
+          existing.innerHTML = buildHeroCard(hero, isActive, table);
+          if (isActive) existing.classList.add('active');
+          else existing.classList.remove('active');
+        } else {
+          // New hero — create card
+          const div = document.createElement('div');
+          div.className = 'hero-card' + (isActive?' active':'');
+          div.dataset.seat = hero.seat_no;
+          div.innerHTML = buildHeroCard(hero, isActive, table);
+          container.appendChild(div);
+        }
+        renderedHeroes[hero.seat_no] = { hash, isActive };
+      });
+
+      // Remove zero-state if it exists
+      const zs = container.querySelector('.zero-state');
+      if (zs) zs.remove();
+
+      // Bottom bar — only update if active hero changed
+      if (activeSeatNo !== renderedBBSeat) {
+        updateBottomBar(activeHero, table);
+        renderedBBSeat = activeSeatNo;
+      } else if (activeHero && renderedHeroes[activeSeatNo]) {
+        // Active hero still same seat but actions might have changed
+        updateBottomBar(activeHero, table);
+      }
+
+      renderedActiveSeat = activeSeatNo;
+    }
+
+    // ── BOTTOM BAR ──
+    function updateBottomBar(activeHero, table) {
+      const bar = document.getElementById('bottom-bar');
+      if (!activeHero) { bar.classList.add('hidden'); return; }
+      bar.classList.remove('hidden');
+      document.getElementById('bb-name').textContent = activeHero.name;
+      document.getElementById('bb-stack').textContent = 'R'+activeHero.stack.toFixed(2);
+      document.getElementById('bb-actions').innerHTML = buildActionButtons(activeHero, table, 'bb-');
+    }
+
+    // ── COMMANDS (with timing) ──
+    function sendCmd(tableId, seatNo, commandType, amount) {
+      const clickTs = Date.now();
+      const body = { table_id: tableId, seat_index: seatNo, command_type: commandType, remote_click_ts: clickTs };
+      if (amount !== undefined) body.amount = amount;
+
+      log('INFO', `CMD: ${commandType}${amount?'('+amount+')':''} → S${seatNo} click_ts=${clickTs}`);
+      addToLog(seatNo, amount?`${commandType}(${amount})`:commandType, 'PENDING');
+
+      fetch(API_BASE+'/commands/queue', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      })
+      .then(r=>r.json())
+      .then(data => {
+        const queuedTs = Date.now();
+        if (data.ok) {
+          log('INFO', `CMD queued: ${commandType} queued_ts=${queuedTs} latency=${queuedTs-clickTs}ms`);
+        } else {
+          log('ERROR', 'CMD failed:', data.error);
+          addToLog(seatNo, commandType, 'FAIL: '+(data.error||''));
+        }
+      })
+      .catch(err => {
+        log('ERROR', 'Net error:', err);
+        addToLog(seatNo, commandType, 'NET_ERR');
+      });
+    }
+
+    function sendSeatRaise(tableId, seatNo, prefix) {
+      const el = document.getElementById(prefix+'amt-'+seatNo);
+      const amt = el ? parseFloat(el.value) : 0;
+      if (amt>0) sendCmd(tableId, seatNo, 'raise', amt);
+    }
+
+    function setPresetAmt(sliderId, amtId, val) {
+      const s=document.getElementById(sliderId), a=document.getElementById(amtId);
+      if (s) s.value=val.toFixed(2); if (a) a.value=val.toFixed(2);
+    }
+
+    // ── PRE-ACTIONS ──
+    function setPreAction(seatNo, type, el) {
+      const tid = currentTableData ? normalizeTable(currentTableData).table_id : '';
+      if (type==='cf' && el.checked) {
+        preActions[seatNo]='cf';
+        document.querySelectorAll(`.hero-card[data-seat="${seatNo}"] .pre-actions input`).forEach(inp=>{if(inp!==el)inp.checked=false;});
+        sendCmd(tid, seatNo, 'check_fold');
+      } else if (type==='cc' && el.checked) {
+        preActions[seatNo]='cc';
+        document.querySelectorAll(`.hero-card[data-seat="${seatNo}"] .pre-actions input`).forEach(inp=>{if(inp!==el)inp.checked=false;});
+        sendCmd(tid, seatNo, 'check_call');
+      } else {
+        preActions[seatNo]=null;
+        sendCmd(tid, seatNo, 'clear');
+      }
+    }
+
+    // ── LOG ──
+    function addToLog(seat,cmd,status) {
+      commandLog.unshift({ts:new Date().toLocaleTimeString(),seat,cmd,status});
+      commandLog = commandLog.slice(0,30);
+      updateLog();
+    }
+    function updateLog() {
+      const el=document.getElementById('log-panel'); if(!el)return;
+      el.innerHTML=commandLog.map(e=>{
+        const cls=e.status==='PENDING'?'':(e.status.startsWith('FAIL')||e.status==='NET_ERR'?'status-err':'status-ok');
+        return `<div class="log-entry"><span>${e.ts} | S${e.seat} | ${e.cmd}</span><span class="${cls}">${e.status}</span></div>`;
+      }).join('');
+    }
+    function toggleLog(){document.getElementById('log-panel').classList.toggle('open');}
+
+    // ── CONNECTION ──
+    function updateConn(state,text) {
+      document.getElementById('conn-dot').className='conn-dot '+state;
+      document.getElementById('conn-text').textContent=text||state;
+    }
+
+    // ── POLLING (300ms) ──
+    async function fetchT(url, opts, timeout) {
+      timeout=timeout||FETCH_TIMEOUT;
+      const c=new AbortController(), t=setTimeout(()=>c.abort(),timeout);
+      try { const r=await fetch(url,{...opts,signal:c.signal}); clearTimeout(t); return r; }
+      catch(e) { clearTimeout(t); throw e.name==='AbortError'?new Error('Timeout'):e; }
+    }
+
+    async function poll() {
+      try {
+        const res=await fetchT(API_BASE+'/table/latest');
+        if(!res.ok)throw new Error('HTTP '+res.status);
+        const data=await res.json();
+        if(!data.ok||!data.table){consecutiveFailures++;updateConn('disconnected','Errors: '+consecutiveFailures);return;}
+
+        // Dedup
+        const snap=Object.assign({},data.table);
+        delete snap.last_updated; delete snap.state_version;
+        (snap.seats||[]).forEach(s=>{delete s.last_seen;delete s.last_seen_ago;});
+        const hash=JSON.stringify(snap);
+        if(hash===lastSnapshotHash){updateConn('connected','Live');return;}
+
+        lastSnapshotHash=hash;
+        consecutiveFailures=0;
+        lastActivityTime=Date.now();
+        if(currentPoll===IDLE_POLL_MS)currentPoll=POLL_MS;
+        updateConn('connected','Live');
+        render(data.table);
+      } catch(e) {
+        consecutiveFailures++;
+        log('ERROR','Poll ('+consecutiveFailures+'):',e.message);
+        updateConn('disconnected','Errors: '+consecutiveFailures);
+      }
+    }
+
+    function scheduleNext() {
+      if(pollTimer)clearTimeout(pollTimer);
+      if(!navigator.onLine||document.hidden)return;
+      if(Date.now()-lastActivityTime>IDLE_THRESHOLD&&currentPoll===POLL_MS){currentPoll=IDLE_POLL_MS;}
+      const delay=consecutiveFailures>0?Math.min(currentPoll*Math.pow(2,consecutiveFailures-1),15000):currentPoll;
+      pollTimer=setTimeout(async()=>{await poll();scheduleNext();},delay);
+    }
+
+    document.addEventListener('visibilitychange',()=>{
+      if(!document.hidden&&pollTimer===null)scheduleNext();
+      else if(document.hidden&&pollTimer){clearTimeout(pollTimer);pollTimer=null;}
+    });
+
+    // ── INIT ──
+    log('INFO','W4P Remote SNAPPY | poll='+POLL_MS+'ms');
+    updateConn('connecting','Connecting...');
+    scheduleNext();
+  </script>
+</body>
+</html>

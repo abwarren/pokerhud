@@ -1,0 +1,13 @@
+Remote UI Backup Hashes — Pre-Dublin Sync (2026-04-29)
+======================================================
+
+File served at http://localhost:5000/remote/:
+  Source: /opt/plo-equity/static/remote.html
+  SHA256: 874da86eff3939e509f9afa18778c979fb3a0c97e5ed9605545d35b0c4eb7823
+
+W4P variant (not currently served at /remote but present in static dir):
+  Source: /opt/plo-equity/static/remote-w4p.html
+  SHA256: df17f4e56f131c47f3556d8562ddea64bd7ff915a5fc0b573f1bacabbe506a55
+
+Flask process: /opt/plo-test/venv/bin/python app.py (pid 3608026)
+Route: @app.route('/remote') → send_from_directory('/opt/plo-equity/static', 'remote.html')
