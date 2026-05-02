@@ -94,59 +94,60 @@
 
   /* -- Card rendering (4-colour) -- */
   .card-mini {
-    width: 42px; height: 58px;
-    border-radius: 5px;
+    width: 32px; height: 44px;
+    border-radius: 4px;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     font-weight: 900; color: #fff; line-height: 1;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    border: 1.5px solid rgba(255,255,255,0.15);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.15);
   }
-  .card-mini .rank { font-size: 1.3em; letter-spacing: -1px; }
-  .card-mini .suit { font-size: 1.5em; line-height: 1; margin-top: -2px; }
+  .card-mini .rank { font-size: 1.1em; letter-spacing: -1px; }
+  .card-mini .suit { font-size: 1.2em; line-height: 1; margin-top: -2px; }
   .card-mini.hearts   { background: #dc143c; }
   .card-mini.diamonds { background: #0066ff; }
   .card-mini.clubs    { background: #228b22; }
   .card-mini.spades   { background: #1a1a2e; }
 
-  /* Board cards -- larger */
-  .board-cards .card-mini { width: 52px; height: 72px; }
-  .board-cards .card-mini .rank { font-size: 1.6em; }
-  .board-cards .card-mini .suit { font-size: 1.8em; }
+  /* Board cards -- medium */
+  .board-cards .card-mini { width: 40px; height: 56px; }
+  .board-cards .card-mini .rank { font-size: 1.3em; }
+  .board-cards .card-mini .suit { font-size: 1.5em; }
 
-  /* Hole cards -- smaller */
-  .hole-cards-row { display: flex; gap: 2px; justify-content: center; }
-  .hole-cards-row .card-mini { width: 26px; height: 34px; }
-  .hole-cards-row .card-mini .rank { font-size: 0.7em; }
-  .hole-cards-row .card-mini .suit { font-size: 0.8em; margin-top: -1px; }
+  /* Hole cards -- compact but readable */
+  .hole-cards-row { display: flex; gap: 2px; justify-content: center; flex-wrap: nowrap; }
+  .hole-cards-row .card-mini { width: 28px; height: 38px; }
+  .hole-cards-row .card-mini .rank { font-size: 0.85em; }
+  .hole-cards-row .card-mini .suit { font-size: 0.95em; margin-top: -1px; }
 
   /* Card placeholder (undealt) */
   .card-placeholder {
-    width: 52px; height: 72px;
-    border-radius: 5px;
+    width: 40px; height: 56px;
+    border-radius: 4px;
     border: 2px dashed rgba(255,255,255,0.12);
     background: rgba(0,0,0,0.15);
   }
 
   /* ================================================================
-     3x3 GRID LAYOUT (replaces felt-table positioning)
+     3x3 GRID LAYOUT — compact: fits all 9 seats without scroll
      ================================================================ */
   .remote-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(280px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
     width: 100%;
-    padding: 16px;
+    padding: 8px;
     box-sizing: border-box;
   }
 
-  @media (max-width: 1100px) {
+  @media (max-width: 900px) {
     .remote-grid {
-      grid-template-columns: repeat(2, minmax(260px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
     }
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 560px) {
     .remote-grid {
       grid-template-columns: 1fr;
     }
@@ -163,12 +164,13 @@
     width: 100%;
     background: rgba(13, 17, 23, 0.92);
     border: 2px solid rgba(255,255,255,0.1);
-    border-radius: 10px;
-    padding: 10px 12px;
+    border-radius: 8px;
+    padding: 6px 8px;
     text-align: center;
     transition: border-color 0.15s, opacity 0.15s;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
     position: relative;
+    overflow: visible;
   }
   .seat-box.empty {
     opacity: 0.3;
@@ -189,7 +191,7 @@
     border-color: #ffd54f;
     box-shadow: 0 0 6px rgba(255,213,79,0.3), 0 2px 6px rgba(0,0,0,0.4);
   }
-  .seat-actions.inactive { opacity: 0.35; }
+  .seat-actions.inactive { opacity: 1; }
   .seat-actions.inactive .sa-turn-label { display: none; }
 
   /* Debug badge */
@@ -215,8 +217,8 @@
   .force-test-btn:hover { background: rgba(255,213,79,0.15); }
   .force-test-btn.active { background: rgba(255,213,79,0.3); }
 
-  .seat-label { font-size: 0.65em; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
-  .seat-name { font-size: 0.95em; font-weight: 700; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 auto; }
+  .seat-label { font-size: 0.6em; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1px; }
+  .seat-name { font-size: 0.85em; font-weight: 700; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 auto; }
   .seat-box.hero .seat-name { color: #64b5f6; }
   .seat-box.expanded .seat-name { color: #ffd54f; }
   .seat-stack { font-size: 0.8em; color: #aaa; margin-top: 2px; }
@@ -326,11 +328,11 @@
   }
   .sa-btn {
     flex: 1;
-    min-width: 0;
-    height: 22px;
+    min-width: 38px;
+    height: 28px;
     border: none;
     border-radius: 4px;
-    font-size: 0.7em;
+    font-size: 0.75em;
     font-weight: 800;
     cursor: pointer;
     color: #fff;
@@ -341,7 +343,7 @@
     letter-spacing: 0.3px;
     padding: 0 4px;
   }
-  .sa-btn:disabled { opacity: 0.2; cursor: default; }
+  .sa-btn:disabled { opacity: 0.7; cursor: default; }
   .sa-btn:not(:disabled):hover { filter: brightness(1.2); }
   .sa-btn:not(:disabled):active { transform: scale(0.95); }
 
@@ -360,16 +362,16 @@
   }
   .sa-preset {
     flex: 1;
-    height: 18px;
+    height: 24px;
     border: 1px solid #444c5a;
-    border-radius: 3px;
-    font-size: 0.6em;
+    border-radius: 4px;
+    font-size: 0.72em;
     font-weight: 700;
     cursor: pointer;
     color: #c8cdd4;
     background: #2c3040;
     transition: all 0.1s;
-    padding: 0;
+    padding: 0 3px;
   }
   .sa-preset:hover { background: #1a9a6c; border-color: #1a9a6c; color: #fff; }
   .sa-presets { margin-bottom: 2px; }
@@ -803,7 +805,7 @@ function getActionData(seat, actionName) {
 // -- Build seat box HTML with inline controls --
 
 function buildSeatBoxHtml(seat) {
-  var isHero = seat.is_self_player === true;
+  var isHero = true; // all seats are ours
   var acts = seat.available_actions || [];
   var sn = getSeatNo(seat);
 
@@ -974,7 +976,20 @@ function renderSeats() {
       slot.innerHTML = buildSeatBoxHtml(seat);
     } else {
       slot.style.display = '';
-      slot.innerHTML = '<div class="seat-box empty"><div class="seat-label">Seat ' + (pos+1) + '</div></div>';
+      var pNames = ["kschoeler","Aceking5","jcolls","Beko","Benne","Den1","Devsup","nicole0804","cclark"];
+      slot.innerHTML = '<div class="seat-box">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+        '<span class="seat-label">SEAT ' + (pos+1) + '</span>' +
+        '<span class="seat-name">' + pNames[pos] + '</span></div>' +
+        '<div class="seat-actions">' +
+        '<div class="sa-row">' +
+        '<button class="sa-btn fold" data-sa-cmd="fold" data-sa-seat="' + pos + '">FOLD</button>' +
+        '<button class="sa-btn check" data-sa-cmd="check" data-sa-seat="' + pos + '">CHECK</button>' +
+        '<button class="sa-btn call" data-sa-cmd="call" data-sa-seat="' + pos + '">CALL</button>' +
+        '<button class="sa-btn raise" data-sa-cmd="raise" data-sa-seat="' + pos + '" data-sa-use-amount="1">RAISE</button>' +
+        '</div>' +
+        '<button class="sa-buyin" data-buyin-seat="' + pos + '">BUY IN</button>' +
+        '</div></div>';
     }
     renderedSeats[pos] = hash;
   }
