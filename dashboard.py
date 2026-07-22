@@ -170,8 +170,16 @@ h1{font-size:1.5rem;margin-bottom:4px;color:#f0f6fc}
 .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
 .card .val{font-size:1.8rem;font-weight:600;color:#58a6ff}
 .card .lbl{font-size:.8rem;color:#8b949e;margin-top:4px}
+.fbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.fbar input,.fbar select{padding:6px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9;font-size:.8rem;outline:none}
+.fbar input:focus,.fbar select:focus{border-color:#58a6ff}
+.fbar input{flex:1;min-width:180px}
+.fbar select{min-width:100px}
+.fbar .ct{color:#8b949e;font-size:.75rem;margin-left:auto}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
-th{text-align:left;padding:8px 12px;border-bottom:2px solid #30363d;color:#8b949e;font-weight:600;white-space:nowrap}
+th{text-align:left;padding:8px 12px;border-bottom:2px solid #30363d;color:#8b949e;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:#f0f6fc}
+th .arr{color:#58a6ff;margin-left:3px}
 td{padding:8px 12px;border-bottom:1px solid #21262d}
 tr:hover{background:#1c2128}
 .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600}
@@ -188,7 +196,7 @@ tr:hover{background:#1c2128}
 .stat-item .sl{font-size:.7rem;color:#8b949e}
 .tabs{display:flex;gap:4px;margin-bottom:16px}
 .tab{padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.85rem;background:#161b22;border:1px solid #30363d}
-.tab.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.tab.active{background:#1f6feb;border-color:#1f6feb;color:#fff}.tab .bc{background:#30363d;border-radius:10px;padding:1px 6px;font-size:.7rem;margin-left:4px}.tab.active .bc{background:#58a6ff33;color:#58a6ff}
 .content{display:none}
 .content.active{display:block}
 @media(max-width:768px){.grid{grid-template-columns:1fr 1fr}}
@@ -211,20 +219,59 @@ tr:hover{background:#1c2128}
 </div>
 
 <div id="schedule-tab" class="content active">
+  <div class="fbar">
+    <input id="sched-search" placeholder="Search tournaments..." oninput="renderSchedule()">
+    <select id="sched-status" onchange="renderSchedule()">
+      <option value="">All Status</option>
+      <option value="Running">Running</option>
+      <option value="Late Registration">Late Reg</option>
+      <option value="Registration">Registration</option>
+      <option value="Completed">Completed</option>
+    </select>
+    <select id="sched-game" onchange="renderSchedule()">
+      <option value="">All Games</option>
+      <option value="NL Hold'em">NL Hold'em</option>
+      <option value="PLO">PLO</option>
+    </select>
+    <span class="ct" id="sched-count"></span>
+  </div>
   <table>
     <thead><tr>
-      <th>Start</th><th>Tournament</th><th>Buy-in</th><th>GTD</th><th>Type</th><th>Reg</th><th>Status</th>
+      <th onclick="sortSchedule('start_time')">Start<span class="arr" id="arr-start_time"></span></th>
+      <th onclick="sortSchedule('name')">Tournament<span class="arr" id="arr-name"></span></th>
+      <th onclick="sortSchedule('buy_in_total_zar')">Buy-in<span class="arr" id="arr-buy_in_total_zar"></span></th>
+      <th onclick="sortSchedule('prize_pool_guaranteed_zar')">GTD<span class="arr" id="arr-prize_pool_guaranteed_zar"></span></th>
+      <th>Type</th>
+      <th onclick="sortSchedule('players_registered')">Reg<span class="arr" id="arr-players_registered"></span></th>
+      <th>Status</th>
     </tr></thead>
     <tbody id="schedule-body"></tbody>
   </table>
 </div>
 
 <div id="players-tab" class="content">
+  <div class="fbar">
+    <input id="play-search" placeholder="Search players..." oninput="renderPlayers()">
+    <select id="play-minh" onchange="renderPlayers()">
+      <option value="0">Min Hands</option>
+      <option value="10">10+</option>
+      <option value="25">25+</option>
+      <option value="50">50+</option>
+      <option value="100">100+</option>
+    </select>
+    <span class="ct" id="play-count"></span>
+  </div>
   <table>
     <thead><tr>
-      <th>Player</th><th>H</th><th>VPIP</th><th>PFR</th><th>3B</th><th>AF</th>
+      <th onclick="sortPlayers('player')">Player<span class="arr" id="arr-player"></span></th>
+      <th onclick="sortPlayers('hands')">H<span class="arr" id="arr-hands"></span></th>
+      <th onclick="sortPlayers('vpip')">VPIP<span class="arr" id="arr-vpip"></span></th>
+      <th onclick="sortPlayers('pfr')">PFR<span class="arr" id="arr-pfr"></span></th>
+      <th onclick="sortPlayers('three_bet')">3B<span class="arr" id="arr-three_bet"></span></th>
+      <th onclick="sortPlayers('af')">AF<span class="arr" id="arr-af"></span></th>
       <th title="Bet sizing % pot per street">P♠</th><th>F♠</th><th>T♠</th><th>R♠</th>
-      <th title="Flop bet sizing by board texture">Texture</th><th>SPR</th>
+      <th title="Flop bet sizing by board texture">Texture</th>
+      <th>SPR</th>
     </tr></thead>
     <tbody id="players-body"></tbody>
   </table>
@@ -232,10 +279,21 @@ tr:hover{background:#1c2128}
 
 <script>
 const API='/api/';
+let scheduleData = [];
 let players = [];
+let schedSort = {key:'status',dir:1};
+let playSort = {key:'hands',dir:-1};
 
 function fmtP(v){return v!=null&&v!==undefined?Number(v).toFixed(1):'?'}
 function fmtVP(v){return v!=null&&v!==undefined?Number(v).toFixed(1)+'%':'?'}
+function gv(o,k){let v=o[k];return v!=null?Number(v):null}
+
+function getVal(o,k){
+  let v=o[k];
+  if(v===null||v===undefined) return k==='player'?'zzz':-1e9;
+  if(typeof v==='string') return v.toLowerCase();
+  return v;
+}
 
 async function loadPulse(){
   try{
@@ -252,50 +310,110 @@ async function loadSchedule(){
   try{
     const r=await fetch(API+'schedule'); const d=await r.json();
     if(d.error){document.getElementById('schedule-body').innerHTML='<tr><td colspan="7">'+d.error+'</td></tr>';return}
-    const tbody=document.getElementById('schedule-body');
-    tbody.innerHTML=d.map(t=>{
-      const statusClass={Registration:'badge-reg','Late Registration':'badge-late',Running:'badge-run',Completed:'badge-done'}[t.status]||'badge-reg';
-      const buyin=t.buy_in_total_zar?'R'+Number(t.buy_in_total_zar).toLocaleString():'-';
-      const gtd=t.prize_pool_guaranteed_zar?'R'+Number(t.prize_pool_guaranteed_zar).toLocaleString():'-';
-      const reg=t.players_registered?(t.players_max?t.players_registered+'/'+t.players_max:t.players_registered):'-';
-      return '<tr><td>'+(t.start_time||'-')+'</td><td>'+t.name+'</td><td>'+buyin+'</td><td>'+gtd+'</td><td>'+(t.game_type||'NLH')+'</td><td>'+reg+'</td><td><span class="badge '+statusClass+'">'+(t.status||'?')+'</span></td></tr>'
-    }).join('');
+    scheduleData=d;
+    renderSchedule();
   }catch(e){}
+}
+
+function renderSchedule(){
+  let d=scheduleData;
+  const q=document.getElementById('sched-search').value.toLowerCase();
+  const st=document.getElementById('sched-status').value;
+  const gt=document.getElementById('sched-game').value;
+
+  let filtered=d.filter(t=>{
+    if(q && !t.name.toLowerCase().includes(q)) return false;
+    if(st && t.status!==st) return false;
+    if(gt && t.game_type!==gt) return false;
+    return true;
+  });
+
+  filtered.sort((a,b)=>{
+    let va=getVal(a,schedSort.key), vb=getVal(b,schedSort.key);
+    if(typeof va==='string') return (va<vb?-1:1)*schedSort.dir;
+    return ((va||0)-(vb||0))*schedSort.dir;
+  });
+
+  document.getElementById('sched-count').textContent=filtered.length+'/'+d.length;
+
+  const tbody=document.getElementById('schedule-body');
+  tbody.innerHTML=filtered.map(t=>{
+    const statusClass={Registration:'badge-reg','Late Registration':'badge-late',Running:'badge-run',Completed:'badge-done'}[t.status]||'badge-reg';
+    const buyin=t.buy_in_total_zar?'R'+Number(t.buy_in_total_zar).toLocaleString():'-';
+    const gtd=t.prize_pool_guaranteed_zar?'R'+Number(t.prize_pool_guaranteed_zar).toLocaleString():'-';
+    const reg=t.players_registered?(t.players_max?t.players_registered+'/'+t.players_max:t.players_registered):'-';
+    return '<tr><td>'+(t.start_time||'-')+'</td><td>'+t.name+'</td><td>'+buyin+'</td><td>'+gtd+'</td><td>'+(t.game_type||'NLH')+'</td><td>'+reg+'</td><td><span class="badge '+statusClass+'">'+(t.status||'?')+'</span></td></tr>'
+  }).join('');
+}
+
+function sortSchedule(key){
+  if(schedSort.key===key) schedSort.dir*=-1;
+  else {schedSort.key=key; schedSort.dir=1}
+  document.querySelectorAll('#schedule-tab .arr').forEach(e=>e.textContent='');
+  const el=document.getElementById('arr-'+key);
+  if(el) el.textContent=schedSort.dir>0?'▲':'▼';
+  renderSchedule();
 }
 
 async function loadPlayers(){
   try{
     const r=await fetch(API+'players'); const d=await r.json();
-    if(d.error){document.getElementById('players-body').innerHTML='<tr><td colspan="11">'+d.error+'</td></tr>';return}
+    if(d.error){document.getElementById('players-body').innerHTML='<tr><td colspan="12">'+d.error+'</td></tr>';return}
     players=d;
-    const tbody=document.getElementById('players-body');
-    if(!players.length){tbody.innerHTML='<tr><td colspan="11">No data collected yet. Scraper running every 30 min.</td></tr>';return}
-    tbody.innerHTML=players.map(p=>{
-      return '<tr class="player-row" onclick="togglePlayer('+(players.indexOf(p))+')">'+
-        '<td><strong>'+p.player+'</strong></td>'+
-        '<td>'+(p.hands||0)+'</td>'+
-        '<td>'+fmtVP(p.vpip)+'</td>'+
-        '<td>'+fmtVP(p.pfr)+'</td>'+
-        '<td>'+fmtVP(p.three_bet)+'</td>'+
-        '<td>'+(p.af!=null?Number(p.af).toFixed(1):'?')+'</td>'+
-        '<td>'+fmtP(p.avg_preflop_pot_pct)+'%</td>'+
-        '<td>'+fmtP(p.avg_flop_pot_pct)+'%</td>'+
-        '<td>'+fmtP(p.avg_turn_pot_pct)+'%</td>'+
-        '<td>'+fmtP(p.avg_river_pot_pct)+'%</td>'+
-        '<td style="font-size:.75rem">'+
-          (p.avg_monotone_pot_pct?'M:'+Number(p.avg_monotone_pot_pct).toFixed(0)+'% ':'')+
-          (p.avg_paired_pot_pct?'P:'+Number(p.avg_paired_pot_pct).toFixed(0)+'% ':'')+
-          (p.avg_rainbow_pot_pct?'R:'+Number(p.avg_rainbow_pot_pct).toFixed(0)+'%':'')+
-        '</td>'+
-        '<td>'+(p.avg_spr!=null?Number(p.avg_spr).toFixed(1):'?')+'</td>'+
-      '</tr>'
-    }).join('');
+    renderPlayers();
   }catch(e){}
 }
 
-function togglePlayer(idx){
-  const p=players[idx];
-  console.log('Detail:',p);
+function renderPlayers(){
+  let d=players;
+  const q=document.getElementById('play-search').value.toLowerCase();
+  const mh=parseInt(document.getElementById('play-minh').value)||0;
+
+  let filtered=d.filter(p=>{
+    if(q && !p.player.toLowerCase().includes(q)) return false;
+    if(mh>0 && (p.hands||0)<mh) return false;
+    return true;
+  });
+
+  filtered.sort((a,b)=>{
+    let va=getVal(a,playSort.key), vb=getVal(b,playSort.key);
+    if(typeof va==='string') return (va<vb?-1:1)*playSort.dir;
+    return ((va||0)-(vb||0))*playSort.dir;
+  });
+
+  document.getElementById('play-count').textContent=filtered.length+'/'+d.length;
+
+  const tbody=document.getElementById('players-body');
+  if(!filtered.length){tbody.innerHTML='<tr><td colspan="12">No data collected yet. Scraper running every 30 min.</td></tr>';return}
+  tbody.innerHTML=filtered.map(p=>{
+    return '<tr class="player-row">'+
+      '<td><strong>'+p.player+'</strong></td>'+
+      '<td>'+(p.hands||0)+'</td>'+
+      '<td>'+fmtVP(p.vpip)+'</td>'+
+      '<td>'+fmtVP(p.pfr)+'</td>'+
+      '<td>'+fmtVP(p.three_bet)+'</td>'+
+      '<td>'+(p.af!=null?Number(p.af).toFixed(1):'?')+'</td>'+
+      '<td>'+fmtP(p.avg_preflop_pot_pct)+'%</td>'+
+      '<td>'+fmtP(p.avg_flop_pot_pct)+'%</td>'+
+      '<td>'+fmtP(p.avg_turn_pot_pct)+'%</td>'+
+      '<td>'+fmtP(p.avg_river_pot_pct)+'%</td>'+
+      '<td style="font-size:.75rem">'+
+        (p.avg_monotone_pot_pct?'M:'+Number(p.avg_monotone_pot_pct).toFixed(0)+'% ':'')+
+        (p.avg_paired_pot_pct?'P:'+Number(p.avg_paired_pot_pct).toFixed(0)+'% ':'')+
+        (p.avg_rainbow_pot_pct?'R:'+Number(p.avg_rainbow_pot_pct).toFixed(0)+'%':'')+
+      '</td>'+
+      '<td>'+(p.avg_spr!=null?Number(p.avg_spr).toFixed(1):'?')+'</td>'+
+    '</tr>'
+  }).join('');
+}
+
+function sortPlayers(key){
+  if(playSort.key===key) playSort.dir*=-1;
+  else {playSort.key=key; playSort.dir=-1}
+  document.querySelectorAll('#players-tab .arr').forEach(e=>e.textContent='');
+  const el=document.getElementById('arr-'+key);
+  if(el) el.textContent=playSort.dir>0?'▲':'▼';
+  renderPlayers();
 }
 
 function switchTab(name){
