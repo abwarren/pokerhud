@@ -170,12 +170,20 @@ h1{font-size:1.5rem;margin-bottom:4px;color:#f0f6fc}
 .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
 .card .val{font-size:1.8rem;font-weight:600;color:#58a6ff}
 .card .lbl{font-size:.8rem;color:#8b949e;margin-top:4px}
-.fbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.fbar{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;align-items:center}
 .fbar input,.fbar select{padding:6px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9;font-size:.8rem;outline:none}
 .fbar input:focus,.fbar select:focus{border-color:#58a6ff}
 .fbar input{flex:1;min-width:180px}
 .fbar select{min-width:100px}
 .fbar .ct{color:#8b949e;font-size:.75rem;margin-left:auto}
+.fbar2{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.fbar2 label{color:#8b949e;font-size:.7rem;white-space:nowrap}
+.fbar2 input,.fbar2 select{padding:4px 8px;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9;font-size:.75rem;outline:none;width:70px}
+.fbar2 input:focus,.fbar2 select:focus{border-color:#58a6ff}
+.ftog{cursor:pointer;color:#58a6ff;font-size:.75rem;margin-bottom:8px;display:inline-block}
+.ftog:hover{text-decoration:underline}
+.fextra{display:none}
+.fextra.show{display:flex}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
 th{text-align:left;padding:8px 12px;border-bottom:2px solid #30363d;color:#8b949e;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
 th:hover{color:#f0f6fc}
@@ -235,6 +243,23 @@ tr:hover{background:#1c2128}
     </select>
     <span class="ct" id="sched-count"></span>
   </div>
+  <div class="ftog" onclick="document.getElementById('sched-extra').classList.toggle('show')">+ More filters</div>
+  <div class="fextra" id="sched-extra">
+    <div class="fbar2">
+      <label>GTD min</label><input id="sched-gtd-min" placeholder="R" oninput="renderSchedule()">
+      <label>GTD max</label><input id="sched-gtd-max" placeholder="R" oninput="renderSchedule()">
+      <label>Buy-in min</label><input id="sched-buyin-min" placeholder="R" oninput="renderSchedule()">
+      <label>Buy-in max</label><input id="sched-buyin-max" placeholder="R" oninput="renderSchedule()">
+      <label>Day</label>
+      <select id="sched-day" onchange="renderSchedule()">
+        <option value="">All</option>
+        <option value="monday">Mon</option><option value="tuesday">Tue</option>
+        <option value="wednesday">Wed</option><option value="thursday">Thu</option>
+        <option value="friday">Fri</option><option value="saturday">Sat</option>
+        <option value="sunday">Sun</option>
+      </select>
+    </div>
+  </div>
   <table>
     <thead><tr>
       <th onclick="sortSchedule('start_time')">Start<span class="arr" id="arr-start_time"></span></th>
@@ -258,8 +283,25 @@ tr:hover{background:#1c2128}
       <option value="25">25+</option>
       <option value="50">50+</option>
       <option value="100">100+</option>
+      <option value="200">200+</option>
+      <option value="500">500+</option>
     </select>
     <span class="ct" id="play-count"></span>
+  </div>
+  <div class="ftog" onclick="document.getElementById('play-extra').classList.toggle('show')">+ More filters</div>
+  <div class="fextra" id="play-extra">
+    <div class="fbar2">
+      <label>VPIP ≥</label><input id="play-vpip-min" placeholder="%" oninput="renderPlayers()">
+      <label>VPIP ≤</label><input id="play-vpip-max" placeholder="%" oninput="renderPlayers()">
+      <label>PFR ≥</label><input id="play-pfr-min" placeholder="%" oninput="renderPlayers()">
+      <label>PFR ≤</label><input id="play-pfr-max" placeholder="%" oninput="renderPlayers()">
+      <label>3B ≥</label><input id="play-3b-min" placeholder="%" oninput="renderPlayers()">
+      <label>3B ≤</label><input id="play-3b-max" placeholder="%" oninput="renderPlayers()">
+      <label>AF ≥</label><input id="play-af-min" oninput="renderPlayers()">
+      <label>AF ≤</label><input id="play-af-max" oninput="renderPlayers()">
+      <label>Monotone ≥</label><input id="play-mon-min" placeholder="%P" oninput="renderPlayers()">
+      <label>SPR ≤</label><input id="play-spr-max" oninput="renderPlayers()">
+    </div>
   </div>
   <table>
     <thead><tr>
@@ -320,11 +362,27 @@ function renderSchedule(){
   const q=document.getElementById('sched-search').value.toLowerCase();
   const st=document.getElementById('sched-status').value;
   const gt=document.getElementById('sched-game').value;
+  const gtdMin=parseFloat(document.getElementById('sched-gtd-min').value)||0;
+  const gtdMax=parseFloat(document.getElementById('sched-gtd-max').value)||0;
+  const buyMin=parseFloat(document.getElementById('sched-buyin-min').value)||0;
+  const buyMax=parseFloat(document.getElementById('sched-buyin-max').value)||0;
+  const day=document.getElementById('sched-day').value.toLowerCase();
 
   let filtered=d.filter(t=>{
     if(q && !t.name.toLowerCase().includes(q)) return false;
     if(st && t.status!==st) return false;
     if(gt && t.game_type!==gt) return false;
+    if(gtdMin>0 && (!t.prize_pool_guaranteed_zar||t.prize_pool_guaranteed_zar<gtdMin)) return false;
+    if(gtdMax>0 && (!t.prize_pool_guaranteed_zar||t.prize_pool_guaranteed_zar>gtdMax)) return false;
+    if(buyMin>0 && (!t.buy_in_total_zar||t.buy_in_total_zar<buyMin)) return false;
+    if(buyMax>0 && (!t.buy_in_total_zar||t.buy_in_total_zar>buyMax)) return false;
+    if(day){
+      const nameL=t.name.toLowerCase();
+      const dayMap={'monday':['mon','monday'],'tuesday':['tue','tuesday'],'wednesday':['wed','wacky','wednesday'],
+                    'thursday':['thu','thursday'],'friday':['fri','friday'],'saturday':['sat','saturday'],'sunday':['sun','slam','sunday']};
+      const keywords=dayMap[day]||[day];
+      if(!keywords.some(k=>nameL.includes(k))) return false;
+    }
     return true;
   });
 
@@ -368,10 +426,30 @@ function renderPlayers(){
   let d=players;
   const q=document.getElementById('play-search').value.toLowerCase();
   const mh=parseInt(document.getElementById('play-minh').value)||0;
+  const vpipMin=parseFloat(document.getElementById('play-vpip-min').value);
+  const vpipMax=parseFloat(document.getElementById('play-vpip-max').value);
+  const pfrMin=parseFloat(document.getElementById('play-pfr-min').value);
+  const pfrMax=parseFloat(document.getElementById('play-pfr-max').value);
+  const b3Min=parseFloat(document.getElementById('play-3b-min').value);
+  const b3Max=parseFloat(document.getElementById('play-3b-max').value);
+  const afMin=parseFloat(document.getElementById('play-af-min').value);
+  const afMax=parseFloat(document.getElementById('play-af-max').value);
+  const monMin=parseFloat(document.getElementById('play-mon-min').value);
+  const sprMax=parseFloat(document.getElementById('play-spr-max').value);
 
   let filtered=d.filter(p=>{
     if(q && !p.player.toLowerCase().includes(q)) return false;
     if(mh>0 && (p.hands||0)<mh) return false;
+    if(!isNaN(vpipMin)&&(p.vpip===undefined||p.vpip===null||p.vpip<vpipMin)) return false;
+    if(!isNaN(vpipMax)&&(p.vpip===undefined||p.vpip===null||p.vpip>vpipMax)) return false;
+    if(!isNaN(pfrMin)&&(p.pfr===undefined||p.pfr===null||p.pfr<pfrMin)) return false;
+    if(!isNaN(pfrMax)&&(p.pfr===undefined||p.pfr===null||p.pfr>pfrMax)) return false;
+    if(!isNaN(b3Min)&&(p.three_bet===undefined||p.three_bet===null||p.three_bet<b3Min)) return false;
+    if(!isNaN(b3Max)&&(p.three_bet===undefined||p.three_bet===null||p.three_bet>b3Max)) return false;
+    if(!isNaN(afMin)&&(p.af===undefined||p.af===null||p.af<afMin)) return false;
+    if(!isNaN(afMax)&&(p.af===undefined||p.af===null||p.af>afMax)) return false;
+    if(!isNaN(monMin)&&(p.avg_monotone_pot_pct===undefined||p.avg_monotone_pot_pct===null||p.avg_monotone_pot_pct<monMin)) return false;
+    if(!isNaN(sprMax)&&(p.avg_spr===undefined||p.avg_spr===null||p.avg_spr>sprMax)) return false;
     return true;
   });
 
