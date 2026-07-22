@@ -1,416 +1,315 @@
 #!/usr/bin/env python3
-"""Time Series Ledger Dashboard for Active Players"""
+"""MTT Stats Dashboard — 10K+ Tournament HUD"""
 import json
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, Response
+from datetime import datetime, timezone
+from flask import Flask, jsonify, Response
 from flask_cors import CORS
 import psycopg2
 import psycopg2.extras
+from pathlib import Path
 
 app = Flask(__name__)
 CORS(app)
 
 DB = dict(host='localhost', port=5432, database='pokerhud',
           user='warren', password='Gemm@143')
+SCRAPED = Path(__file__).parent / 'scraped_data' / 'high_rollers'
 
 
 def get_conn():
     return psycopg2.connect(**DB)
 
 
+# ── API Routes ───────────────────────────────────────────────────────────────
+
 @app.route('/')
 def index():
-    return Response(DASHBOARD_HTML, content_type='text/html')
+    return Response(HTML, content_type='text/html')
+
+
+@app.route('/api/schedule')
+def schedule():
+    """Upcoming & active 10K+ tournaments from DB."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, name, buy_in_entry_zar, buy_in_fee_zar,
+                   buy_in_total_zar, prize_pool_guaranteed_zar,
+                   start_time, game_type, status, players_registered,
+                   players_max, is_satellite, scraped_at
+            FROM tournaments
+            WHERE prize_pool_guaranteed_zar >= 10000
+               OR buy_in_total_zar >= 10000
+            ORDER BY
+                CASE status
+                    WHEN 'Running' THEN 0
+                    WHEN 'Late Registration' THEN 1
+                    WHEN 'Registration' THEN 2
+                    ELSE 3
+                END,
+                start_time DESC NULLS LAST
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/players')
 def players():
+    """Aggregate player stats across all 10K+ tournaments."""
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
-            SELECT m.username, m.status, m.container_name, m.eip, m.batch,
-                   m.is_active, m.notes,
-                   c.balance_zar as latest_balance,
-                   c.observed_at as last_seen
-            FROM myplayerspokerbet m
-            LEFT JOIN LATERAL (
-                SELECT balance_zar, observed_at
-                FROM cash_balances
-                WHERE lower(player_name) = lower(m.username)
-                ORDER BY observed_at DESC LIMIT 1
-            ) c ON true
-            WHERE m.is_active = true
-            ORDER BY m.username
-        """)
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        for r in rows:
-            if r.get('last_seen'):
-                r['last_seen'] = r['last_seen'].isoformat()
-            if r.get('latest_balance') is not None:
-                r['latest_balance'] = float(r['latest_balance'])
-        return jsonify(rows)
-    except Exception:
-        return jsonify([])
-
-
-@app.route('/api/balances')
-def balances():
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""
-            SELECT lower(player_name) as player_name,
-                   balance_zar, delta_zar, observed_at
-            FROM cash_balances
-            WHERE lower(player_name) IN (
-                SELECT lower(username) FROM myplayerspokerbet WHERE is_active = true
-            )
-            ORDER BY observed_at ASC
-        """)
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        series = {}
-        for r in rows:
-            name = r['player_name']
-            if name not in series:
-                series[name] = []
-            series[name].append({
-                't': r['observed_at'].isoformat(),
-                'bal': float(r['balance_zar']),
-                'delta': float(r['delta_zar'] or 0)
-            })
-        return jsonify(series)
-    except Exception:
-        return jsonify({})
-
-
-@app.route('/api/hud-sync', methods=['POST'])
-def hud_sync():
-    """Receive HUD stats from the Chrome extension."""
-    data = request.get_json(silent=True) or {}
-    if not data or not data.get('players'):
-        return jsonify({'ok': True, 'stored': 0})
-    stored = 0
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        for p in data['players']:
-            cur.execute("""
-                INSERT INTO unified_players (primary_name, total_hands, aggregate_stats, updated_at)
-                VALUES (%s, %s, %s::jsonb, now())
-                ON CONFLICT (user_id, primary_name) WHERE (user_id IS NULL)
-                DO UPDATE SET total_hands = EXCLUDED.total_hands,
-                    aggregate_stats = EXCLUDED.aggregate_stats,
-                    updated_at = now()
-            """, (p.get('name', 'unknown'), p.get('hands', 0), json.dumps(p)))
-            stored += 1
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)})
-    return jsonify({'ok': True, 'stored': stored})
-
-@app.route('/api/tournaments')
-def tournament_list():
-    """Return active/upcoming tournaments from the database."""
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        SELECT name, buy_in_total_zar, prize_pool_guaranteed_zar,
-               start_time, game_type, status, players_registered, has_rebuy,
-               description
-        FROM tournaments
-        WHERE status != 'Completed'
-        ORDER BY
-            CASE status
-                WHEN 'Late Registration' THEN 1
-                WHEN 'Running' THEN 2
-                WHEN 'Registration' THEN 3
-                ELSE 4
-            END,
-            start_time ASC
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    for r in rows:
-        for k in ('buy_in_total_zar', 'prize_pool_guaranteed_zar', 'players_registered'):
-            if r.get(k) is not None:
-                r[k] = float(r[k])
-    return jsonify(rows)
-
-@app.route('/api/tenk-tournaments')
-def tenk_tournaments():
-    """Return all 10K+ guaranteed tournaments."""
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        SELECT name, buy_in_total_zar, prize_pool_guaranteed_zar,
-               start_time, game_type, status, players_registered, has_rebuy,
-               description
-        FROM tournaments
-        WHERE prize_pool_guaranteed_zar >= 10000
-        ORDER BY prize_pool_guaranteed_zar DESC, start_time ASC
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    for r in rows:
-        for k in ('buy_in_total_zar', 'prize_pool_guaranteed_zar', 'players_registered'):
-            if r.get(k) is not None:
-                r[k] = float(r[k])
-    return jsonify(rows)
-
-@app.route('/api/summary')
-def summary():
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""
-            WITH ranked AS (
-                SELECT lower(player_name) as pn, balance_zar, observed_at,
-                       ROW_NUMBER() OVER (PARTITION BY lower(player_name) ORDER BY observed_at ASC) as rn_first,
-                       ROW_NUMBER() OVER (PARTITION BY lower(player_name) ORDER BY observed_at DESC) as rn_last
-                FROM cash_balances
-                WHERE lower(player_name) IN (
-                    SELECT lower(username) FROM myplayerspokerbet WHERE is_active = true
-                )
-            )
-            SELECT pn as player_name,
-                   COUNT(*) as observations,
-                   MIN(balance_zar) as min_bal,
-                   MAX(balance_zar) as max_bal,
-                   MAX(CASE WHEN rn_first = 1 THEN balance_zar END) as first_bal,
-                   MAX(CASE WHEN rn_last = 1 THEN balance_zar END) as last_bal,
-                   MIN(observed_at) as first_seen,
-                   MAX(observed_at) as last_seen
-            FROM ranked
-            GROUP BY pn
-            ORDER BY pn
+            SELECT u.primary_name AS player,
+                   u.total_hands AS hands,
+                   u.aggregate_stats,
+                   u.positional_stats,
+                   u.last_seen
+            FROM unified_players u
+            WHERE u.total_hands > 0
+            ORDER BY u.total_hands DESC
+            LIMIT 100
         """)
         rows = cur.fetchall()
         cur.close()
         conn.close()
         result = []
         for r in rows:
-            first = float(r['first_bal'] or 0)
-            last = float(r['last_bal'] or 0)
-            result.append({
-                'player': r['player_name'],
-                'observations': r['observations'],
-                'first_bal': first,
-                'last_bal': last,
-                'pnl': round(last - first, 2),
-                'min_bal': float(r['min_bal'] or 0),
-                'max_bal': float(r['max_bal'] or 0),
-                'first_seen': r['first_seen'].isoformat() if r['first_seen'] else None,
-                'last_seen': r['last_seen'].isoformat() if r['last_seen'] else None,
-            })
-        total_pnl = sum(r['pnl'] for r in result)
-        return jsonify({'players': result, 'total_pnl': round(total_pnl, 2)})
-    except Exception:
-        return jsonify({'players': [], 'total_pnl': 0})
+            p = {'player': r['player'], 'hands': r['hands']}
+            ag = r.get('aggregate_stats') or {}
+            if isinstance(ag, str):
+                ag = json.loads(ag)
+            for k in ('vpip', 'pfr', 'three_bet', 'af', 'wtsd', 'won_at_sd',
+                      'avg_bet_pot_pct', 'avg_spr',
+                      'avg_preflop_pot_pct', 'avg_flop_pot_pct',
+                      'avg_turn_pot_pct', 'avg_river_pot_pct',
+                      'avg_monotone_pot_pct', 'avg_paired_pot_pct', 'avg_rainbow_pot_pct'):
+                if k in ag:
+                    p[k] = ag[k]
+            result.append(p)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
-DASHBOARD_HTML = r"""<!DOCTYPE html>
+@app.route('/api/players/<name>')
+def player_detail(name):
+    """Per-player detail with timeline."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT u.primary_name, u.total_hands,
+                   u.aggregate_stats, u.positional_stats,
+                   u.last_seen, u.updated_at
+            FROM unified_players u
+            WHERE LOWER(u.primary_name) = LOWER(%s)
+        """, (name,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'player not found'}), 404
+        cur.close()
+        conn.close()
+        p = dict(row)
+        for f in ('aggregate_stats', 'positional_stats'):
+            if isinstance(p.get(f), str):
+                p[f] = json.loads(p[f])
+        return jsonify(p)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pulse')
+def pulse():
+    """Scraper health & data volume."""
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT count(*) as total_tournaments FROM tournaments WHERE prize_pool_guaranteed_zar >= 10000")
+        t = cur.fetchone()
+        cur.execute("SELECT count(*) as total_players FROM unified_players WHERE total_hands > 0")
+        p = cur.fetchone()
+        cur.execute("SELECT count(*) as total_hands FROM hands")
+        h = cur.fetchone()
+        cur.execute("SELECT scraped_at FROM tournaments ORDER BY scraped_at DESC LIMIT 1")
+        last = cur.fetchone()
+        cur.close()
+        conn.close()
+        files = list(SCRAPED.glob('*.json')) if SCRAPED.exists() else []
+        return jsonify({
+            'tournaments': t['total_tournaments'],
+            'players': p['total_players'],
+            'hands': h['total_hands'],
+            'data_files': len(files),
+            'last_scrape': last['scraped_at'].isoformat() if last else None,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── HTML Frontend ────────────────────────────────────────────────────────────
+
+HTML = '''<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PLO Player Ledger</title>
+<title>MTT HUD — 10K+ PokerBet</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-       background: #0f1117; color: #e0e0e0; }
-.header { background: #1a1d27; padding: 16px 24px; border-bottom: 1px solid #2a2d37;
-          display: flex; justify-content: space-between; align-items: center; }
-.header h1 { font-size: 20px; color: #fff; }
-.header .total { font-size: 18px; font-weight: 600; }
-.total.pos { color: #4ade80; } .total.neg { color: #f87171; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 12px; padding: 16px; }
-.card { background: #1a1d27; border-radius: 8px; padding: 14px; border: 1px solid #2a2d37; }
-.card .name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-.card .stats { display: flex; gap: 12px; font-size: 12px; color: #9ca3af; margin-bottom: 8px; }
-.card .pnl { font-size: 16px; font-weight: 700; }
-.pos { color: #4ade80; } .neg { color: #f87171; } .flat { color: #9ca3af; }
-.chart-wrap { height: 120px; margin-top: 8px; }
-.big-chart { background: #1a1d27; border-radius: 8px; padding: 16px; margin: 16px;
-             border: 1px solid #2a2d37; }
-.big-chart h2 { font-size: 16px; color: #fff; margin-bottom: 12px; }
-.big-chart-wrap { height: 320px; }
-table { width: 100%; border-collapse: collapse; margin: 16px; max-width: calc(100% - 32px); }
-th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #2a2d37; font-size: 13px; }
-th { color: #9ca3af; font-weight: 500; background: #1a1d27; }
-td { color: #e0e0e0; }
-.refresh { background: #3b82f6; color: #fff; border: none; padding: 6px 14px;
-           border-radius: 4px; cursor: pointer; font-size: 13px; }
-.refresh:hover { background: #2563eb; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-.dot-active { background: #4ade80; } .dot-pool { background: #fbbf24; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;padding:20px}
+h1{font-size:1.5rem;margin-bottom:4px;color:#f0f6fc}
+.sub{color:#8b949e;font-size:.85rem;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px}
+.card .val{font-size:1.8rem;font-weight:600;color:#58a6ff}
+.card .lbl{font-size:.8rem;color:#8b949e;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;padding:8px 12px;border-bottom:2px solid #30363d;color:#8b949e;font-weight:600;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #21262d}
+tr:hover{background:#1c2128}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600}
+.badge-reg{background:#1f6feb33;color:#58a6ff}
+.badge-run{background:#23863633;color:#3fb950}
+.badge-late{background:#d2992233;color:#d29922}
+.badge-done{background:#30363d;color:#8b949e}
+.player-row{cursor:pointer}
+.player-expand{display:none;background:#0d1117;padding:12px 16px;margin:4px 0 8px;border-radius:6px;font-size:.8rem}
+.player-expand.show{display:block}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px}
+.stat-item{text-align:center;padding:6px;background:#161b22;border-radius:4px}
+.stat-item .sv{font-size:1.1rem;font-weight:600;color:#f0f6fc}
+.stat-item .sl{font-size:.7rem;color:#8b949e}
+.tabs{display:flex;gap:4px;margin-bottom:16px}
+.tab{padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.85rem;background:#161b22;border:1px solid #30363d}
+.tab.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.content{display:none}
+.content.active{display:block}
+@media(max-width:768px){.grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
-<div class="header">
-  <h1>PLO Player Ledger — Active Players</h1>
-  <div>
-    <span class="total" id="totalPnl">Loading...</span>
-    <button class="refresh" onclick="load()" style="margin-left:12px">Refresh</button>
-  </div>
+<h1> MTTHUD — 10K+ PokerBet</h1>
+<div class="sub" id="last-scraped">Awaiting data...</div>
+
+<div class="grid" id="pulse-grid">
+  <div class="card"><div class="val" id="p-tourneys">-</div><div class="lbl">Tournaments Tracked</div></div>
+  <div class="card"><div class="val" id="p-players">-</div><div class="lbl">Players Scouted</div></div>
+  <div class="card"><div class="val" id="p-hands">-</div><div class="lbl">Hands Collected</div></div>
+  <div class="card"><div class="val" id="p-files">-</div><div class="lbl">Data Files</div></div>
 </div>
 
-<div class="big-chart">
-  <h2>All Players — Balance Over Time</h2>
-  <div class="big-chart-wrap"><canvas id="allChart"></canvas></div>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('schedule')">Schedule</div>
+  <div class="tab" onclick="switchTab('players')">Players</div>
 </div>
 
-<div class="grid" id="cards"></div>
-
-<div style="padding:0 16px">
-  <h2 style="font-size:16px;margin-bottom:8px;color:#fff">Ledger Summary</h2>
+<div id="schedule-tab" class="content active">
+  <table>
+    <thead><tr>
+      <th>Start</th><th>Tournament</th><th>Buy-in</th><th>GTD</th><th>Type</th><th>Reg</th><th>Status</th>
+    </tr></thead>
+    <tbody id="schedule-body"></tbody>
+  </table>
 </div>
-<table id="ledgerTable">
-  <thead><tr>
-    <th>Player</th><th>First Bal (R)</th><th>Current (R)</th><th>P&L (R)</th>
-    <th>Min</th><th>Max</th><th>Obs</th><th>Last Seen</th>
-  </tr></thead>
-  <tbody id="ledgerBody"></tbody>
-</table>
+
+<div id="players-tab" class="content">
+  <table>
+    <thead><tr>
+      <th>Player</th><th>H</th><th>VPIP</th><th>PFR</th><th>3B</th><th>AF</th>
+      <th title="Bet sizing % pot per street">P♠</th><th>F♠</th><th>T♠</th><th>R♠</th>
+      <th title="Flop bet sizing by board texture">Texture</th><th>SPR</th>
+    </tr></thead>
+    <tbody id="players-body"></tbody>
+  </table>
+</div>
 
 <script>
-const COLORS = [
-  '#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6',
-  '#ec4899','#06b6d4','#f97316','#84cc16'
-];
-let allChart = null;
-const miniCharts = {};
+const API='/api/';
+let players = [];
 
-async function load() {
-  const [sumRes, balRes] = await Promise.all([
-    fetch('/api/summary').then(r=>r.json()),
-    fetch('/api/balances').then(r=>r.json())
-  ]);
-  renderTotal(sumRes);
-  renderAllChart(balRes);
-  renderCards(sumRes.players, balRes);
-  renderTable(sumRes.players);
+function fmtP(v){return v!=null&&v!==undefined?Number(v).toFixed(1):'?'}
+function fmtVP(v){return v!=null&&v!==undefined?Number(v).toFixed(1)+'%':'?'}
+
+async function loadPulse(){
+  try{
+    const r=await fetch(API+'pulse'); const d=await r.json();
+    document.getElementById('p-tourneys').textContent=d.tournaments??'-';
+    document.getElementById('p-players').textContent=d.players??'-';
+    document.getElementById('p-hands').textContent=d.hands??'-';
+    document.getElementById('p-files').textContent=d.data_files??'-';
+    if(d.last_scrape) document.getElementById('last-scraped').textContent='Last scrape: '+new Date(d.last_scrape).toLocaleString();
+  }catch(e){}
 }
 
-function renderTotal(sum) {
-  const el = document.getElementById('totalPnl');
-  const pnl = sum.total_pnl;
-  el.textContent = `Total P&L: R${pnl>=0?'+':''}${pnl.toFixed(2)}`;
-  el.className = 'total ' + (pnl>0?'pos':pnl<0?'neg':'flat');
+async function loadSchedule(){
+  try{
+    const r=await fetch(API+'schedule'); const d=await r.json();
+    if(d.error){document.getElementById('schedule-body').innerHTML='<tr><td colspan="7">'+d.error+'</td></tr>';return}
+    const tbody=document.getElementById('schedule-body');
+    tbody.innerHTML=d.map(t=>{
+      const statusClass={Registration:'badge-reg','Late Registration':'badge-late',Running:'badge-run',Completed:'badge-done'}[t.status]||'badge-reg';
+      const buyin=t.buy_in_total_zar?'R'+Number(t.buy_in_total_zar).toLocaleString():'-';
+      const gtd=t.prize_pool_guaranteed_zar?'R'+Number(t.prize_pool_guaranteed_zar).toLocaleString():'-';
+      const reg=t.players_registered?(t.players_max?t.players_registered+'/'+t.players_max:t.players_registered):'-';
+      return '<tr><td>'+(t.start_time||'-')+'</td><td>'+t.name+'</td><td>'+buyin+'</td><td>'+gtd+'</td><td>'+(t.game_type||'NLH')+'</td><td>'+reg+'</td><td><span class="badge '+statusClass+'">'+(t.status||'?')+'</span></td></tr>'
+    }).join('');
+  }catch(e){}
 }
 
-function renderAllChart(balances) {
-  const ctx = document.getElementById('allChart').getContext('2d');
-  if (allChart) allChart.destroy();
-  const datasets = Object.keys(balances).sort().map((name, i) => ({
-    label: name,
-    data: balances[name].map(d => ({x: new Date(d.t), y: d.bal})),
-    borderColor: COLORS[i % COLORS.length],
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    pointRadius: 0,
-    tension: 0.3
-  }));
-  allChart = new Chart(ctx, {
-    type: 'line',
-    data: { datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        x: { type:'time', time:{unit:'hour'}, grid:{color:'#2a2d37'}, ticks:{color:'#9ca3af',font:{size:10}} },
-        y: { grid:{color:'#2a2d37'}, ticks:{color:'#9ca3af',font:{size:10}, callback: v=>'R'+v} }
-      },
-      plugins: {
-        legend: { labels:{color:'#e0e0e0',font:{size:11}}, position:'top' },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label+': R'+ctx.parsed.y.toFixed(2) }}
-      },
-      interaction: { mode:'index', intersect:false }
-    }
-  });
+async function loadPlayers(){
+  try{
+    const r=await fetch(API+'players'); const d=await r.json();
+    if(d.error){document.getElementById('players-body').innerHTML='<tr><td colspan="11">'+d.error+'</td></tr>';return}
+    players=d;
+    const tbody=document.getElementById('players-body');
+    if(!players.length){tbody.innerHTML='<tr><td colspan="11">No data collected yet. Scraper running every 30 min.</td></tr>';return}
+    tbody.innerHTML=players.map(p=>{
+      return '<tr class="player-row" onclick="togglePlayer('+(players.indexOf(p))+')">'+
+        '<td><strong>'+p.player+'</strong></td>'+
+        '<td>'+(p.hands||0)+'</td>'+
+        '<td>'+fmtVP(p.vpip)+'</td>'+
+        '<td>'+fmtVP(p.pfr)+'</td>'+
+        '<td>'+fmtVP(p.three_bet)+'</td>'+
+        '<td>'+(p.af!=null?Number(p.af).toFixed(1):'?')+'</td>'+
+        '<td>'+fmtP(p.avg_preflop_pot_pct)+'%</td>'+
+        '<td>'+fmtP(p.avg_flop_pot_pct)+'%</td>'+
+        '<td>'+fmtP(p.avg_turn_pot_pct)+'%</td>'+
+        '<td>'+fmtP(p.avg_river_pot_pct)+'%</td>'+
+        '<td style="font-size:.75rem">'+
+          (p.avg_monotone_pot_pct?'M:'+Number(p.avg_monotone_pot_pct).toFixed(0)+'% ':'')+
+          (p.avg_paired_pot_pct?'P:'+Number(p.avg_paired_pot_pct).toFixed(0)+'% ':'')+
+          (p.avg_rainbow_pot_pct?'R:'+Number(p.avg_rainbow_pot_pct).toFixed(0)+'%':'')+
+        '</td>'+
+        '<td>'+(p.avg_spr!=null?Number(p.avg_spr).toFixed(1):'?')+'</td>'+
+      '</tr>'
+    }).join('');
+  }catch(e){}
 }
 
-function renderCards(players, balances) {
-  const grid = document.getElementById('cards');
-  grid.innerHTML = '';
-  players.forEach((p, i) => {
-    const pnlClass = p.pnl>0?'pos':p.pnl<0?'neg':'flat';
-    const pnlSign = p.pnl>=0?'+':'';
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="name"><span class="status-dot dot-active"></span>${p.player}</div>
-      <div class="stats">
-        <span>R${p.last_bal.toFixed(2)}</span>
-        <span>${p.observations} obs</span>
-      </div>
-      <div class="pnl ${pnlClass}">${pnlSign}R${p.pnl.toFixed(2)}</div>
-      <div class="chart-wrap"><canvas id="mini-${p.player}"></canvas></div>
-    `;
-    grid.appendChild(card);
-    const series = balances[p.player] || [];
-    if (series.length > 0) {
-      setTimeout(() => {
-        const ctx = document.getElementById('mini-'+p.player).getContext('2d');
-        if (miniCharts[p.player]) miniCharts[p.player].destroy();
-        const color = COLORS[i % COLORS.length];
-        miniCharts[p.player] = new Chart(ctx, {
-          type: 'line',
-          data: { datasets: [{
-            data: series.map(d=>({x:new Date(d.t),y:d.bal})),
-            borderColor: color, backgroundColor: color+'20',
-            borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true
-          }]},
-          options: {
-            responsive:true, maintainAspectRatio:false,
-            scales: {
-              x:{type:'time',display:false},
-              y:{display:false}
-            },
-            plugins:{legend:{display:false},tooltip:{enabled:false}},
-            elements:{point:{radius:0}}
-          }
-        });
-      }, 50);
-    }
-  });
+function togglePlayer(idx){
+  const p=players[idx];
+  console.log('Detail:',p);
 }
 
-function renderTable(players) {
-  const body = document.getElementById('ledgerBody');
-  body.innerHTML = '';
-  players.forEach(p => {
-    const pnlClass = p.pnl>0?'pos':p.pnl<0?'neg':'flat';
-    const last = p.last_seen ? new Date(p.last_seen).toLocaleTimeString() : '-';
-    body.innerHTML += `<tr>
-      <td><span class="status-dot dot-active"></span>${p.player}</td>
-      <td>R${p.first_bal.toFixed(2)}</td>
-      <td>R${p.last_bal.toFixed(2)}</td>
-      <td class="${pnlClass}">${p.pnl>=0?'+':''}R${p.pnl.toFixed(2)}</td>
-      <td>R${p.min_bal.toFixed(2)}</td>
-      <td>R${p.max_bal.toFixed(2)}</td>
-      <td>${p.observations}</td>
-      <td>${last}</td>
-    </tr>`;
-  });
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.content').forEach(c=>c.classList.remove('active'));
+  document.querySelector('.tab[onclick*="'+name+'"]').classList.add('active');
+  document.getElementById(name+'-tab').classList.add('active');
 }
 
-load();
-setInterval(load, 30000);
+loadPulse(); loadSchedule(); loadPlayers();
+setInterval(()=>{loadPulse(); loadSchedule();},30000);
 </script>
 </body>
-</html>
-"""
+</html>'''
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8899, debug=False)
