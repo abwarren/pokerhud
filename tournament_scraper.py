@@ -57,7 +57,7 @@ HANDS_BASE = "https://poker-hands.skillgames-bc.com"
 RATES_BASE = "https://poker-rate.skillgames-bc.com"
 
 # Output
-OUTPUT_DIR = Path("/opt/pokerhud/tournament_data")
+OUTPUT_DIR = Path("./scraped_data")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Logging

@@ -2,7 +2,7 @@
 """Time Series Ledger Dashboard for Active Players"""
 import json
 from datetime import datetime, timedelta
-from flask import Flask, jsonify, Response
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import psycopg2
 import psycopg2.extras
@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 DB = dict(host='localhost', port=5432, database='pokerhud',
-          user='warrenabrahams', password='pokerhud')
+          user='warren', password='Gemm@143')
 
 
 def get_conn():
@@ -25,109 +25,196 @@ def index():
 
 @app.route('/api/players')
 def players():
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        SELECT m.username, m.status, m.container_name, m.eip, m.batch,
-               m.is_active, m.notes,
-               c.balance_zar as latest_balance,
-               c.observed_at as last_seen
-        FROM myplayerspokerbet m
-        LEFT JOIN LATERAL (
-            SELECT balance_zar, observed_at
-            FROM cash_balances
-            WHERE lower(player_name) = lower(m.username)
-            ORDER BY observed_at DESC LIMIT 1
-        ) c ON true
-        WHERE m.is_active = true
-        ORDER BY m.username
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    for r in rows:
-        if r.get('last_seen'):
-            r['last_seen'] = r['last_seen'].isoformat()
-        if r.get('latest_balance') is not None:
-            r['latest_balance'] = float(r['latest_balance'])
-    return jsonify(rows)
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT m.username, m.status, m.container_name, m.eip, m.batch,
+                   m.is_active, m.notes,
+                   c.balance_zar as latest_balance,
+                   c.observed_at as last_seen
+            FROM myplayerspokerbet m
+            LEFT JOIN LATERAL (
+                SELECT balance_zar, observed_at
+                FROM cash_balances
+                WHERE lower(player_name) = lower(m.username)
+                ORDER BY observed_at DESC LIMIT 1
+            ) c ON true
+            WHERE m.is_active = true
+            ORDER BY m.username
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        for r in rows:
+            if r.get('last_seen'):
+                r['last_seen'] = r['last_seen'].isoformat()
+            if r.get('latest_balance') is not None:
+                r['latest_balance'] = float(r['latest_balance'])
+        return jsonify(rows)
+    except Exception:
+        return jsonify([])
 
 
 @app.route('/api/balances')
 def balances():
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        SELECT lower(player_name) as player_name,
-               balance_zar, delta_zar, observed_at
-        FROM cash_balances
-        WHERE lower(player_name) IN (
-            SELECT lower(username) FROM myplayerspokerbet WHERE is_active = true
-        )
-        ORDER BY observed_at ASC
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    series = {}
-    for r in rows:
-        name = r['player_name']
-        if name not in series:
-            series[name] = []
-        series[name].append({
-            't': r['observed_at'].isoformat(),
-            'bal': float(r['balance_zar']),
-            'delta': float(r['delta_zar'] or 0)
-        })
-    return jsonify(series)
-
-
-@app.route('/api/summary')
-def summary():
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        WITH ranked AS (
-            SELECT lower(player_name) as pn, balance_zar, observed_at,
-                   ROW_NUMBER() OVER (PARTITION BY lower(player_name) ORDER BY observed_at ASC) as rn_first,
-                   ROW_NUMBER() OVER (PARTITION BY lower(player_name) ORDER BY observed_at DESC) as rn_last
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT lower(player_name) as player_name,
+                   balance_zar, delta_zar, observed_at
             FROM cash_balances
             WHERE lower(player_name) IN (
                 SELECT lower(username) FROM myplayerspokerbet WHERE is_active = true
             )
-        )
-        SELECT pn as player_name,
-               COUNT(*) as observations,
-               MIN(balance_zar) as min_bal,
-               MAX(balance_zar) as max_bal,
-               MAX(CASE WHEN rn_first = 1 THEN balance_zar END) as first_bal,
-               MAX(CASE WHEN rn_last = 1 THEN balance_zar END) as last_bal,
-               MIN(observed_at) as first_seen,
-               MAX(observed_at) as last_seen
-        FROM ranked
-        GROUP BY pn
-        ORDER BY pn
+            ORDER BY observed_at ASC
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        series = {}
+        for r in rows:
+            name = r['player_name']
+            if name not in series:
+                series[name] = []
+            series[name].append({
+                't': r['observed_at'].isoformat(),
+                'bal': float(r['balance_zar']),
+                'delta': float(r['delta_zar'] or 0)
+            })
+        return jsonify(series)
+    except Exception:
+        return jsonify({})
+
+
+@app.route('/api/hud-sync', methods=['POST'])
+def hud_sync():
+    """Receive HUD stats from the Chrome extension."""
+    data = request.get_json(silent=True) or {}
+    if not data or not data.get('players'):
+        return jsonify({'ok': True, 'stored': 0})
+    stored = 0
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        for p in data['players']:
+            cur.execute("""
+                INSERT INTO unified_players (primary_name, total_hands, aggregate_stats, updated_at)
+                VALUES (%s, %s, %s::jsonb, now())
+                ON CONFLICT (user_id, primary_name) WHERE (user_id IS NULL)
+                DO UPDATE SET total_hands = EXCLUDED.total_hands,
+                    aggregate_stats = EXCLUDED.aggregate_stats,
+                    updated_at = now()
+            """, (p.get('name', 'unknown'), p.get('hands', 0), json.dumps(p)))
+            stored += 1
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+    return jsonify({'ok': True, 'stored': stored})
+
+@app.route('/api/tournaments')
+def tournament_list():
+    """Return active/upcoming tournaments from the database."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("""
+        SELECT name, buy_in_total_zar, prize_pool_guaranteed_zar,
+               start_time, game_type, status, players_registered, has_rebuy,
+               description
+        FROM tournaments
+        WHERE status != 'Completed'
+        ORDER BY
+            CASE status
+                WHEN 'Late Registration' THEN 1
+                WHEN 'Running' THEN 2
+                WHEN 'Registration' THEN 3
+                ELSE 4
+            END,
+            start_time ASC
     """)
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    result = []
     for r in rows:
-        first = float(r['first_bal'] or 0)
-        last = float(r['last_bal'] or 0)
-        result.append({
-            'player': r['player_name'],
-            'observations': r['observations'],
-            'first_bal': first,
-            'last_bal': last,
-            'pnl': round(last - first, 2),
-            'min_bal': float(r['min_bal'] or 0),
-            'max_bal': float(r['max_bal'] or 0),
-            'first_seen': r['first_seen'].isoformat() if r['first_seen'] else None,
-            'last_seen': r['last_seen'].isoformat() if r['last_seen'] else None,
-        })
-    total_pnl = sum(r['pnl'] for r in result)
-    return jsonify({'players': result, 'total_pnl': round(total_pnl, 2)})
+        for k in ('buy_in_total_zar', 'prize_pool_guaranteed_zar', 'players_registered'):
+            if r.get(k) is not None:
+                r[k] = float(r[k])
+    return jsonify(rows)
+
+@app.route('/api/tenk-tournaments')
+def tenk_tournaments():
+    """Return all 10K+ guaranteed tournaments."""
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("""
+        SELECT name, buy_in_total_zar, prize_pool_guaranteed_zar,
+               start_time, game_type, status, players_registered, has_rebuy,
+               description
+        FROM tournaments
+        WHERE prize_pool_guaranteed_zar >= 10000
+        ORDER BY prize_pool_guaranteed_zar DESC, start_time ASC
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    for r in rows:
+        for k in ('buy_in_total_zar', 'prize_pool_guaranteed_zar', 'players_registered'):
+            if r.get(k) is not None:
+                r[k] = float(r[k])
+    return jsonify(rows)
+
+@app.route('/api/summary')
+def summary():
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            WITH ranked AS (
+                SELECT lower(player_name) as pn, balance_zar, observed_at,
+                       ROW_NUMBER() OVER (PARTITION BY lower(player_name) ORDER BY observed_at ASC) as rn_first,
+                       ROW_NUMBER() OVER (PARTITION BY lower(player_name) ORDER BY observed_at DESC) as rn_last
+                FROM cash_balances
+                WHERE lower(player_name) IN (
+                    SELECT lower(username) FROM myplayerspokerbet WHERE is_active = true
+                )
+            )
+            SELECT pn as player_name,
+                   COUNT(*) as observations,
+                   MIN(balance_zar) as min_bal,
+                   MAX(balance_zar) as max_bal,
+                   MAX(CASE WHEN rn_first = 1 THEN balance_zar END) as first_bal,
+                   MAX(CASE WHEN rn_last = 1 THEN balance_zar END) as last_bal,
+                   MIN(observed_at) as first_seen,
+                   MAX(observed_at) as last_seen
+            FROM ranked
+            GROUP BY pn
+            ORDER BY pn
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        result = []
+        for r in rows:
+            first = float(r['first_bal'] or 0)
+            last = float(r['last_bal'] or 0)
+            result.append({
+                'player': r['player_name'],
+                'observations': r['observations'],
+                'first_bal': first,
+                'last_bal': last,
+                'pnl': round(last - first, 2),
+                'min_bal': float(r['min_bal'] or 0),
+                'max_bal': float(r['max_bal'] or 0),
+                'first_seen': r['first_seen'].isoformat() if r['first_seen'] else None,
+                'last_seen': r['last_seen'].isoformat() if r['last_seen'] else None,
+            })
+        total_pnl = sum(r['pnl'] for r in result)
+        return jsonify({'players': result, 'total_pnl': round(total_pnl, 2)})
+    except Exception:
+        return jsonify({'players': [], 'total_pnl': 0})
 
 
 DASHBOARD_HTML = r"""<!DOCTYPE html>

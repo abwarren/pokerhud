@@ -25,4 +25,5 @@ logs/
 snapshots/
 tournament_data/
 Scrapegraph-ai/
-Scrapegraph-ai/
+# Scraped output
+scraped_data/
