@@ -16,8 +16,9 @@ class TestClassifyBuyin:
         assert classifier.classify_buyin(500) == "MID"
         assert classifier.classify_buyin(999) == "MID"
 
-    def test_r1000_exact_band(self):
-        assert classifier.classify_buyin(1000) == "R1000"
+    def test_1000_is_high_band(self):
+        # R1000 refers to the R1,000 GUARANTEE tier, not the buy-in
+        assert classifier.classify_buyin(1000) == "HIGH"
         assert classifier.classify_buyin(999) == "MID"
         assert classifier.classify_buyin(1001) == "HIGH"
 
@@ -61,11 +62,23 @@ class TestCohort:
 
 
 class TestClassifyTournament:
-    def test_r1000_tournament(self):
-        t = classifier.classify_tournament({"buyin": 1000, "entries": 87})
-        assert t["buyin_band"] == "R1000"
+    def test_r1000_guarantee_tier(self):
+        # R1,000 GUARANTEE -> dedicated R1000 cohort regardless of buy-in
+        t = classifier.classify_tournament({"buyin": 50, "guarantee": 1000,
+                                            "entries": 87})
+        assert t["buyin_band"] == "MICRO"
         assert t["cohort"] == "R1000"
         assert t["field_band"] == "SMALL_FIELD"
+
+    def test_buyin_1000_without_r1000_guarantee_is_high(self):
+        # a R1,000 buy-in with a normal guarantee is HIGH, not R1000
+        t = classifier.classify_tournament({"buyin": 1000, "guarantee": 30000})
+        assert t["buyin_band"] == "HIGH"
+        assert t["cohort"] == "HIGH"
+
+    def test_non_r1000_guarantee_carries_buyin_band(self):
+        t = classifier.classify_tournament({"buyin": 500, "guarantee": 125000})
+        assert t["cohort"] == "MID"
 
     def test_total_entry_cost_fallback(self):
         t = classifier.classify_tournament({"total_entry_cost": 1100})

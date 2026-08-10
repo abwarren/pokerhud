@@ -18,6 +18,7 @@ import asyncio
 import json
 import time
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -42,10 +43,10 @@ WS_URLS = [
 ]
 
 # Auth data from network trace
-PARTNER_ID = "18751019"
-CLIENT_ID = "92311469"
-PLAYER_ID = "357652843"
-TOKEN = "2F90D07AC6E160842CFC8757484A5857"
+PARTNER_ID = os.environ.get("PB_PARTNER_ID", "18751019")
+CLIENT_ID = os.environ.get("PB_CLIENT_ID", "")
+PLAYER_ID = os.environ.get("PB_PLAYER_ID", "")
+TOKEN = os.environ.get("PB_TOKEN", "")
 
 all_received = []
 

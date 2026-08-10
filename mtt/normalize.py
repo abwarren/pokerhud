@@ -107,6 +107,7 @@ GAME_ALIASES = {
     "NL HOLD'EM": "NLHE", "NL HOLDEM": "NLHE", "NLH": "NLHE",
     "TEXAS HOLD'EM": "NLHE", "TEXAS HOLDEM": "NLHE", "HOLDEM": "NLHE",
     "NO LIMIT HOLD'EM": "NLHE", "NO LIMIT HOLDEM": "NLHE",
+    "HOLD'EM NL": "NLHE", "HOLDEM NL": "NLHE", "TEXAS HOLD'EM NL": "NLHE",
     "POT LIMIT OMAHA": "PLO", "OMAHA HI": "PLO", "OMAHA": "PLO",
     "OMAHA 5": "PLO5", "OMAHA HI-LO": "PLO8", "OMAHA 8": "PLO8",
 }
@@ -216,4 +217,114 @@ def normalize_player(raw: dict) -> dict:
         "starting_stack": clean_int(raw.get("starting_stack")),
         "rebuy_count": clean_int(raw.get("rebuy_count")),
         "addon_count": clean_int(raw.get("addon_count")),
+    }
+
+
+def parse_evenbet_buyin(s) -> tuple:
+    """Parse EvenBet buy-in strings into (buyin, fee, bounty).
+
+    Examples:
+        'R1000+R100'          -> (1000, 100, None)
+        'R400 + R80 + R400'   -> (400, 80, 400)   (KO bounty)
+        'R50+R5'              -> (50, 5, None)
+        'R0' / 'R1'           -> (0/1, None, None)
+        None / garbage        -> (None, None, None)
+    """
+    if s is None:
+        return (None, None, None)
+    parts = re.findall(r"R\s*([\d][\d ]*)", str(s), re.I)
+    nums = []
+    for p in parts:
+        n = clean_int(p)
+        if n is not None:
+            nums.append(n)
+    if not nums:
+        return (None, None, None)
+    buyin = nums[0]
+    fee = nums[1] if len(nums) > 1 else None
+    bounty = nums[2] if len(nums) > 2 else None
+    return (buyin, fee, bounty)
+
+
+def normalize_table(raw: dict) -> dict:
+    return {
+        "site_table_id": clean_name(raw.get("site_table_id")),
+        "table_name": clean_name(raw.get("table_name")),
+        "captured_at": parse_datetime(raw.get("captured_at")),
+        "players_count": clean_int(raw.get("players_count")),
+        "seats": clean_int(raw.get("seats")),
+        "average_stack": clean_int(raw.get("average_stack")),
+        "small_blind": clean_int(raw.get("small_blind")),
+        "big_blind": clean_int(raw.get("big_blind")),
+        "ante": clean_int(raw.get("ante")),
+    }
+
+
+# Action types are free-form at the source; map to canonical set.
+ACTION_MAP = {
+    "fold": "fold", "folds": "fold",
+    "check": "check", "checks": "check",
+    "call": "call", "calls": "call",
+    "bet": "bet", "bets": "bet",
+    "raise": "raise", "raises": "raise", "re-raise": "raise", "reraise": "raise",
+    "all-in": "allin", "allin": "allin", "all in": "allin",
+    "win": "win", "wins": "win", "showdown win": "win",
+    "post": "post", "posts": "post", "ante": "post",
+    "return": "return",
+}
+
+STREET_MAP = {
+    "preflop": "preflop", "pre-flop": "preflop", "pre": "preflop",
+    "flop": "flop", "turn": "turn", "river": "river",
+    "showdown": "showdown", "results": "showdown",
+}
+
+
+def normalize_hand_action(raw: dict, order: int) -> dict:
+    action_type = str(raw.get("action_type") or "").strip().lower()
+    action_type = ACTION_MAP.get(action_type, action_type)
+    street = str(raw.get("street") or "").strip().lower()
+    street = STREET_MAP.get(street, street)
+    return {
+        "player": clean_name(raw.get("player") or raw.get("display_name")),
+        "street": street or None,
+        "action_type": action_type or None,
+        "amount": clean_int(raw.get("amount")),
+        "pot_after": clean_int(raw.get("pot_after")),
+        "action_order": order,
+    }
+
+
+def normalize_hand(raw: dict) -> dict:
+    """Map an adapter hand dict to the canonical hand record."""
+    site = clean_name(raw.get("site"))
+    players = []
+    for i, hp in enumerate(raw.get("players") or []):
+        players.append({
+            "player": clean_name(hp.get("display_name") or hp.get("player")),
+            "site_player_id": clean_name(hp.get("site_player_id")),
+            "seat": clean_int(hp.get("seat")),
+            "position": clean_name(hp.get("position")),
+            "starting_stack": clean_int(hp.get("starting_stack")),
+            "ending_stack": clean_int(hp.get("ending_stack")),
+            "hole_cards": clean_name(hp.get("hole_cards")),
+            "order": i,
+        })
+    actions = [normalize_hand_action(a, i) for i, a in enumerate(raw.get("actions") or [])]
+    return {
+        "site": site,
+        "site_hand_id": clean_name(raw.get("site_hand_id")),
+        "tournament_ref": clean_name(raw.get("tournament_ref")),
+        "table_ref": clean_name(raw.get("table_ref")),
+        "table_name": clean_name(raw.get("table_name")),
+        "hand_number": clean_int(raw.get("hand_number")),
+        "played_at": parse_datetime(raw.get("played_at")),
+        "small_blind": clean_int(raw.get("small_blind")),
+        "big_blind": clean_int(raw.get("big_blind")),
+        "ante": clean_int(raw.get("ante")),
+        "button_position": clean_int(raw.get("button_position")),
+        "board": clean_name(raw.get("board")),
+        "final_pot": clean_int(raw.get("final_pot")),
+        "players": players,
+        "actions": actions,
     }

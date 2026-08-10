@@ -12,7 +12,7 @@
       "buyin": 1000,
       "fee": 100,
       "total_entry_cost": 1100,
-      "guarantee": 10000,
+      "guarantee": 1000,
       "start_time": "2026-08-10T18:00:00+02:00",
       "status": "registration",
       "entries": 87,

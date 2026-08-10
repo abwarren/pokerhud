@@ -1,6 +1,7 @@
 # PokerHUD — Multi-Tier Tournament Pipeline (MTT)
 
-Status: PLAN (approved before code per workflow)
+Status: IMPLEMENTED (2026-08-11) — see docs/security-audit.md and the
+        ops section below. Plan was approved before code (committed 97aca33).
 Date: 2026-08-10
 Repo: github.com/abwarren/pokerhud
 
@@ -64,8 +65,10 @@ SUNBET ──┐                      POKERBET ──┐
 Golden rules:
 1. Site identity first: `(site, site_tournament_id)` is canonical — never name.
 2. Raw before parse: every capture stores the original payload + parser version.
-3. R1000 cohort: `cohort='R1000'` for buy-in R1,000 tournaments. All stats
-   filters must include cohort; analytics never mix R1000 with MICRO/SMALL/MID/HIGH.
+3. R1000 cohort: `cohort='R1000'` for tournaments with a R1,000 GUARANTEE
+   (the R1k GTD tier — "R1000" means the guarantee, not the buy-in). All
+   stats filters must include cohort; analytics never mix R1000 with
+   MICRO/SMALL/MID/HIGH.
 4. Idempotent: unique constraints + upserts; reruns do not duplicate.
 5. Accuracy over completeness: missing data is FLAGGED, never silently filled.
 
@@ -102,8 +105,7 @@ buyin (ZAR)      buyin_band
 < 100            MICRO
 100 – 499        SMALL
 500 – 999        MID
-1000             R1000      ← dedicated cohort
-> 1000           HIGH
+>= 1000          HIGH
 
 entries          field_band
 1 – 50           TINY_FIELD
@@ -113,7 +115,11 @@ entries          field_band
 >= 1000          1000_PLUS_FIELD
 ```
 
-`cohort` column = `R1000` for buy-in 1000, else the buyin_band value.
+`cohort` rule (user correction 2026-08-11): **"R1000" = the R1,000
+GUARANTEE tier** (a tournament whose guarantee is exactly R1,000), NOT the
+buy-in. Those tournaments get `cohort = 'R1000'` and are never mixed with
+other tiers in analytics. Every other tournament carries its buyin_band as
+cohort.
 
 ## 5. Implementation
 
@@ -168,15 +174,44 @@ first, then normalizes, then writes.
 - Output: daily report = expected/captured/complete/partial/missing per
   site + cohort; R1000 section isolated
 
-## 7. Testing
+## 7. Operations (implemented)
 
-- Unit: classifier (band edges, R1000 exact), normalizer, quality scoring
+```bash
+python3 -m mtt.run init-db                        # create schema mtt
+python3 -m mtt.run ingest --site pokerbet         # CMS + (WS when tokens set)
+MTT_SB_INPUT=/path python3 -m mtt.run ingest --site sunbet   # file payloads
+python3 -m mtt.run ingest --site sunbet --browser  # Selenium lobby collector
+python3 -m mtt.run daily --date 2026-08-11         # reconcile -> daily_statistics
+python3 -m mtt.run report --date 2026-08-11        # print daily ledger
+python3 -m mtt.run stats [--site X] [--cohort R1000]
+python3 -m mtt.run analytics [--site X] [--cohort R1000] [--min-tournaments N]
+python3 -m mtt.run export --date <d> [--site X] [--out file.json]
+python3 -m mtt.run runs                            # observability: last runs
+```
+
+Env: `MTT_SCHEMA` (default mtt), `MTT_HOST/PORT/DBNAME/USER/PASSWORD`,
+`MTT_RAW_DIR` (default raw), `MTT_PB_TOKEN/MTT_PB_CLIENT_ID/MTT_PB_PLAYER_ID`
+(WS live — optional, CMS-only otherwise), `MTT_SB_INPUT` (SunBet file mode).
+
+SunBet live capture needs a browser session with SunBet cookies
+(`--browser`, Selenium) or EvenBet-shaped JSON payloads dropped in
+`MTT_SB_INPUT` (files are moved to `processed/` after ingestion).
+See the poker-tooling skill: evenbet-cookie-injection.md.
+
+Known source limitations: results/payouts are not exposed by either site's
+public endpoints; PokerBet hand history API is Cloudflare-gated (needs
+session headers); SunBet hands need a live table session. All are captured
+as documented gaps (parser_errors / NO_RESULTS quality flag), never faked.
+
+## 8. Testing
+
+- Unit: classifier (band edges, R1000 guarantee tier), normalizer, quality scoring
 - Integration: fixture payload -> adapter -> raw -> DB -> classification
 - E2E: full pipeline against fixtures, run 3x fresh, plus double-run
   idempotency check, plus reparse (parser v2 on same raw)
 - Live smoke: PokerBet CMS endpoint (auth-free) where reachable
 
-## 8. Acceptance
+## 9. Acceptance
 
 - All tournaments of both sites ingested daily (live where endpoints allow,
   else documented as source limitation)

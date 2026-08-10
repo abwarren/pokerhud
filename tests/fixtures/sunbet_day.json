@@ -5,14 +5,14 @@
     {
       "site": "sunbet",
       "site_tournament_id": "s-2001",
-      "name": "SunBet R1000 Big",
+      "name": "SunBet 1k GTD",
       "game_type": "NLHE",
       "format": "MTT",
       "currency": "ZAR",
       "buyin": 1000,
       "fee": 90,
       "total_entry_cost": 1090,
-      "guarantee": 30000,
+      "guarantee": 1000,
       "start_time": "2026-08-10T19:30:00+02:00",
       "status": "running",
       "entries": 121

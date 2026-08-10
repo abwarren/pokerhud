@@ -7,6 +7,8 @@ Polls every 30 seconds during active tournaments.
 """
 
 import json
+import os
+from pathlib import Path
 import time
 import logging
 import math
@@ -17,13 +19,27 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 # Database config
+def _pgpass():
+    try:
+        p = Path.home() / '.pokerhud_pgpass'
+        if p.exists():
+            lines = p.read_text().strip().splitlines()
+            return lines[0] if lines else None
+    except OSError:
+        return None
+    return None
+
+
+# Database config — credentials from env / local fallback, never committed
 DB_CONFIG = {
-    'host': 'localhost',
-    'port': 5432,
-    'database': 'pokerhud',
-    'user': 'warrenabrahams',
-    'password': 'pokerhud'
+    'host': os.environ.get('MTT_HOST', 'localhost'),
+    'port': int(os.environ.get('MTT_PORT', '5432')),
+    'dbname': os.environ.get('MTT_DBNAME', 'pokerhud'),
+    'user': os.environ.get('MTT_USER', 'warren'),
 }
+_pw = os.environ.get('MTT_PASSWORD') or _pgpass()
+if _pw:
+    DB_CONFIG['password'] = _pw
 
 # PokerBet API
 PARTNER_ID = '18751019'

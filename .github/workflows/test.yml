@@ -1,0 +1,42 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: warren
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: pokerhud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U warren"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run test suite (isolated mtt_test schema)
+        run: pytest tests/ -q
+        env:
+          MTT_HOST: localhost
+          MTT_PORT: "5432"
+          MTT_DBNAME: pokerhud
+          MTT_USER: warren
+          MTT_PASSWORD: test
+          MTT_SCHEMA: mtt_test
+          MTT_RAW_DIR: /tmp/mtt_test_raw

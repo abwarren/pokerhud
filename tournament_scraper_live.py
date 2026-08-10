@@ -22,10 +22,10 @@ from urllib.parse import quote
 import requests
 
 # ============================================
-# SUPABASE CONFIG
+# SUPABASE CONFIG (key from env only — never committed)
 # ============================================
-SUPABASE_URL = "https://kzqrdtagpykoylhuqcyv.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6cXJkdGFncHlrb3lsaHVxY3l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNzMxMDQsImV4cCI6MjA5MTY0OTEwNH0.wfmyJ8sf1QZK4w3BWfYd-_JdIKUfgPkUl9Fz4Nnv-OI"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://kzqrdtagpykoylhuqcyv.supabase.co")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 
 HEADERS_SUPABASE = {
     "apikey": SUPABASE_ANON_KEY,

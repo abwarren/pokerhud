@@ -1,19 +1,21 @@
 """Tournament classification: buy-in bands, field bands, R1000 cohort.
 
-Rules (plan docs/mtt-pipeline-plan.md):
+Rules (plan docs/mtt-pipeline-plan.md; user correction 2026-08-11):
 - buyin_band by buy-in ZAR (entry cost, excluding fee):
     < 100            MICRO
     100 – 499        SMALL
     500 – 999        MID
-    1000             R1000   <- dedicated cohort, NEVER mixed in analytics
-    > 1000           HIGH
+    >= 1000          HIGH
 - field_band by entries/field size:
     1–50     TINY_FIELD
     51–150   SMALL_FIELD
     151–500  MEDIUM_FIELD
     501–999  LARGE_FIELD
     >=1000   1000_PLUS_FIELD
-- cohort = 'R1000' when buyin_band == 'R1000', else buyin_band value.
+- cohort = 'R1000' when the tournament GUARANTEE is R1,000 (the R1k GTD
+  tier — this is what the user means by "R1000 tournaments", NOT buy-in).
+  All other tournaments carry their buyin_band as cohort. R1000 is a
+  dedicated statistical cohort: analytics never mix it with other tiers.
 
 Fallback: if buyin is missing, classify from total_entry_cost; if neither,
 band is UNKNOWN (flagged by the quality engine, never guessed).
@@ -23,13 +25,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-# Ordered band boundaries (lower bound inclusive). R1000 is its own exact band.
+# Ordered band boundaries (lower bound inclusive).
 BUYIN_BANDS = [
     (None, 100, "MICRO"),
     (100, 500, "SMALL"),
     (500, 1000, "MID"),
-    (1000, 1000, "R1000"),      # exact: buyin == 1000
-    (1000, None, "HIGH"),       # > 1000
+    (1000, None, "HIGH"),
 ]
 
 FIELD_BANDS = [
@@ -40,15 +41,14 @@ FIELD_BANDS = [
     (1000, None, "1000_PLUS_FIELD"),
 ]
 
-R1000_BUYIN = 1000
+# The R1000 cohort = the R1,000 guarantee tier (user-defined).
+R1000_GUARANTEE = 1000
 
 
 def classify_buyin(buyin: Optional[float]) -> Optional[str]:
     """Return buyin_band for a numeric buy-in (ZAR). None -> UNKNOWN."""
     if buyin is None:
         return None
-    if buyin == R1000_BUYIN:
-        return "R1000"
     if buyin < 100:
         return "MICRO"
     if buyin < 500:
@@ -74,7 +74,7 @@ def classify_field(entries: Optional[int]) -> Optional[str]:
 
 
 def cohort_for(buyin_band: Optional[str]) -> Optional[str]:
-    """Analytics cohort. R1000 stays isolated; others carry their band."""
+    """Fallback analytics cohort for non-R1000 tournaments."""
     if buyin_band is None:
         return None
     if buyin_band == "R1000":
@@ -87,6 +87,10 @@ def classify_tournament(t: dict) -> dict:
 
     Mutates and returns the dict. Uses buyin first, total_entry_cost as
     fallback (flagged as inferred by the caller via 'buyin_inferred').
+
+    Cohort rule (user-defined): a tournament whose GUARANTEE is exactly
+    R1,000 is cohort 'R1000' (the R1k GTD tier) and is NEVER mixed with
+    other cohorts in analytics. Everything else carries its buyin_band.
     """
     buyin = t.get("buyin")
     if buyin is None and t.get("total_entry_cost") is not None:
@@ -100,5 +104,10 @@ def classify_tournament(t: dict) -> dict:
     if entries is None:
         entries = t.get("field_size")
     t["field_band"] = classify_field(entries)
-    t["cohort"] = cohort_for(band)
+
+    guarantee = t.get("guarantee")
+    if guarantee == R1000_GUARANTEE:
+        t["cohort"] = "R1000"          # R1,000 guarantee tier — isolated
+    else:
+        t["cohort"] = cohort_for(band)
     return t

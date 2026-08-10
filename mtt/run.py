@@ -89,6 +89,66 @@ def cmd_stats(a):
     conn.close()
 
 
+def cmd_analytics(a):
+    """Cohort-separated player performance (R1000 isolated by design)."""
+    from . import analytics
+    conn = db.connect()
+    db.ensure_schema(conn)
+    rows = analytics.player_performance(
+        conn, site=a.site, cohort=a.cohort, field_band=a.field_band,
+        min_tournaments=a.min_tournaments, limit=a.limit)
+    if not rows:
+        print("no players match the filters")
+    for r in rows:
+        print(f"{r['site']:<10} {r['cohort']:<12} {r['field_band'] or '?':<14} "
+              f"{r['display_name']:<22} n={r['tournaments_played']:<3} "
+              f"cash={r['cash_count']:<3} prize=R{r['total_prizes']:,} "
+              f"cost=R{r['total_cost']:,} roi={r['roi_pct']}% "
+              f"best=#{r['best_finish']}")
+    conn.close()
+
+
+def cmd_export(a):
+    import json
+    from . import analytics
+    conn = db.connect()
+    db.ensure_schema(conn)
+    day = date.fromisoformat(a.date)
+    payload = analytics.export_day(conn, day, a.site)
+    text = json.dumps(payload, indent=2, default=str)
+    if a.out:
+        with open(a.out, "w") as f:
+            f.write(text)
+        print(f"exported {day.isoformat()} -> {a.out}")
+    else:
+        print(text)
+    conn.close()
+
+
+def cmd_runs(a):
+    """Recent ingestion runs (observability)."""
+    conn = db.connect()
+    db.ensure_schema(conn)
+    s = db.schema_name()
+    rows = db.query(
+        conn,
+        f"""SELECT run_id, site, started_at, completed_at, duration_s,
+                   tournaments_discovered, tournaments_captured,
+                   tournaments_failed, players_captured, hands_captured,
+                   duplicates, validation_errors, status
+            FROM {s}.ingestion_runs
+            ORDER BY started_at DESC LIMIT %s""",
+        (a.limit,))
+    for r in rows:
+        print(f"{r['started_at']:%Y-%m-%d %H:%M} {r['site']:<9} "
+              f"status={r['status']:<10} dur={r['duration_s']}s "
+              f"disc={r['tournaments_discovered']} cap={r['tournaments_captured']} "
+              f"fail={r['tournaments_failed']} players={r['players_captured']} "
+              f"hands={r['hands_captured']} dupes={r['duplicates']} "
+              f"valerr={r['validation_errors']} run={r['run_id'][:18]}")
+    conn.close()
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="mtt", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -116,6 +176,24 @@ def main(argv=None):
     s5.add_argument("--site")
     s5.add_argument("--cohort")
     s5.set_defaults(fn=cmd_stats)
+
+    s6 = sub.add_parser("analytics", help="cohort-separated player performance")
+    s6.add_argument("--site")
+    s6.add_argument("--cohort")
+    s6.add_argument("--field-band")
+    s6.add_argument("--min-tournaments", type=int, default=1)
+    s6.add_argument("--limit", type=int, default=50)
+    s6.set_defaults(fn=cmd_analytics)
+
+    s7 = sub.add_parser("export", help="export a day as JSON")
+    s7.add_argument("--date", default=datetime.now().date().isoformat())
+    s7.add_argument("--site")
+    s7.add_argument("--out", help="output file (default stdout)")
+    s7.set_defaults(fn=cmd_export)
+
+    s8 = sub.add_parser("runs", help="recent ingestion runs")
+    s8.add_argument("--limit", type=int, default=10)
+    s8.set_defaults(fn=cmd_runs)
 
     a = p.parse_args(argv)
     a.raw_dir = getattr(a, "raw_dir", "raw")

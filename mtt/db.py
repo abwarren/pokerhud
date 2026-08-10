@@ -7,22 +7,38 @@ Idempotency contract:
 - player_tournaments: UNIQUE (player_id, tournament_id)
 - raw_events:  UNIQUE (site, capture_id) — deterministic capture ids
 - daily_statistics: UNIQUE (stat_date, site, cohort)
+- hands:       UNIQUE (site, site_hand_id) — deterministic hand ids
+- hand_actions: UNIQUE (hand_id, action_order)
 
 Schema name is configurable (MTT_SCHEMA env) so tests run against
 mtt_test without touching production tables.
+
+Credentials: read from env (MTT_HOST/MTT_PORT/MTT_DBNAME/MTT_USER/MTT_PASSWORD)
+with a local fallback file ~/.pokerhud_pgpass (first line = password).
+No credentials are hardcoded in this file.
 """
 
 from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import psycopg2
 import psycopg2.extras
 
-DEFAULT_DSN = dict(host="localhost", port=5432, dbname="pokerhud",
-                   user="warren", password="Gemm@143")
+
+def _local_pgpass() -> Optional[str]:
+    """Password from ~/.pokerhud_pgpass (untracked, outside the repo)."""
+    try:
+        p = Path.home() / ".pokerhud_pgpass"
+        if p.exists():
+            line = p.read_text().strip().splitlines()
+            return line[0] if line else None
+    except OSError:
+        return None
+    return None
 
 
 def schema_name() -> str:
@@ -30,11 +46,13 @@ def schema_name() -> str:
 
 
 def dsn() -> dict:
-    d = dict(DEFAULT_DSN)
-    for k in ("host", "port", "dbname", "user", "password"):
-        v = os.environ.get(f"MTT_{k.upper()}")
-        if v:
-            d[k] = v
+    d = dict(host=os.environ.get("MTT_HOST", "localhost"),
+             port=int(os.environ.get("MTT_PORT", "5432")),
+             dbname=os.environ.get("MTT_DBNAME", "pokerhud"),
+             user=os.environ.get("MTT_USER", "warren"))
+    password = os.environ.get("MTT_PASSWORD") or _local_pgpass()
+    if password:
+        d["password"] = password
     return d
 
 
@@ -189,6 +207,161 @@ CREATE TABLE IF NOT EXISTS {schema}.daily_statistics (
     generated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (stat_date, site, cohort)
 );
+
+-- Explicit cohort assignment history: one row per stable (cohort, bands)
+-- assignment; reclassification creates a new row (history preserved).
+CREATE TABLE IF NOT EXISTS {schema}.tournament_cohorts (
+    id              SERIAL PRIMARY KEY,
+    tournament_id   INTEGER NOT NULL REFERENCES {schema}.tournaments(id) ON DELETE CASCADE,
+    cohort          TEXT NOT NULL,
+    buyin_band      TEXT,
+    field_band      TEXT,
+    parser_version  TEXT NOT NULL,
+    assigned_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (tournament_id, cohort, buyin_band, field_band)
+);
+CREATE INDEX IF NOT EXISTS idx_cohorts_tourn ON {schema}.tournament_cohorts (tournament_id);
+
+CREATE TABLE IF NOT EXISTS {schema}.tables (
+    id              SERIAL PRIMARY KEY,
+    tournament_id   INTEGER NOT NULL REFERENCES {schema}.tournaments(id) ON DELETE CASCADE,
+    site_table_id   TEXT NOT NULL,
+    table_name      TEXT,
+    UNIQUE (tournament_id, site_table_id)
+);
+
+CREATE TABLE IF NOT EXISTS {schema}.table_snapshots (
+    id              SERIAL PRIMARY KEY,
+    table_id        INTEGER NOT NULL REFERENCES {schema}.tables(id) ON DELETE CASCADE,
+    captured_at     TIMESTAMPTZ NOT NULL,
+    players_count   INTEGER,
+    seats           INTEGER,
+    average_stack   INTEGER,
+    small_blind     INTEGER,
+    big_blind       INTEGER,
+    ante            INTEGER,
+    UNIQUE (table_id, captured_at)
+);
+
+CREATE TABLE IF NOT EXISTS {schema}.hands (
+    id              SERIAL PRIMARY KEY,
+    site            TEXT NOT NULL,
+    site_hand_id    TEXT NOT NULL,
+    tournament_id   INTEGER REFERENCES {schema}.tournaments(id) ON DELETE CASCADE,
+    table_id        INTEGER REFERENCES {schema}.tables(id) ON DELETE SET NULL,
+    hand_number     INTEGER,
+    played_at       TIMESTAMPTZ,
+    small_blind     INTEGER,
+    big_blind       INTEGER,
+    ante            INTEGER,
+    button_position INTEGER,
+    board           TEXT,
+    final_pot       INTEGER,
+    UNIQUE (site, site_hand_id)
+);
+CREATE INDEX IF NOT EXISTS idx_hands_tourn ON {schema}.hands (tournament_id);
+
+CREATE TABLE IF NOT EXISTS {schema}.hand_players (
+    id              SERIAL PRIMARY KEY,
+    hand_id         INTEGER NOT NULL REFERENCES {schema}.hands(id) ON DELETE CASCADE,
+    player_id       INTEGER NOT NULL REFERENCES {schema}.players(id) ON DELETE CASCADE,
+    seat            INTEGER,
+    position        TEXT,
+    starting_stack  INTEGER,
+    ending_stack    INTEGER,
+    hole_cards      TEXT,
+    UNIQUE (hand_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS {schema}.hand_actions (
+    id              SERIAL PRIMARY KEY,
+    hand_id         INTEGER NOT NULL REFERENCES {schema}.hands(id) ON DELETE CASCADE,
+    player_id       INTEGER REFERENCES {schema}.players(id) ON DELETE SET NULL,
+    street          TEXT,
+    action_type     TEXT NOT NULL,
+    amount          INTEGER,
+    pot_after       INTEGER,
+    action_order    INTEGER NOT NULL,
+    UNIQUE (hand_id, action_order)
+);
+
+-- ---------------- analytics views ----------------
+-- Every view exposes cohort (and where relevant field_band) so a generic
+-- query can never silently mix R1000 with lower-stakes tournaments.
+
+CREATE OR REPLACE VIEW {schema}.v_daily_summary AS
+SELECT stat_date, site, cohort,
+       tournaments_expected, tournaments_captured,
+       tournaments_complete, tournaments_partial, tournaments_missing,
+       entries_total, prize_pool_total
+FROM {schema}.daily_statistics;
+
+CREATE OR REPLACE VIEW {schema}.v_cohort_summary AS
+SELECT site, cohort, field_band,
+       COUNT(*) AS tournaments,
+       COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+       COALESCE(SUM(entries), 0) AS entries,
+       COALESCE(SUM(prize_pool), 0) AS prize_pool,
+       ROUND(COALESCE(AVG(data_quality_score), 0)) AS avg_quality
+FROM {schema}.tournaments
+WHERE cohort IS NOT NULL
+GROUP BY site, cohort, field_band;
+
+-- Per-player performance, explicitly keyed by (cohort, field_band).
+-- R1000 rows are separate rows and must never be merged with others.
+CREATE OR REPLACE VIEW {schema}.v_player_performance AS
+SELECT p.id AS player_id,
+       p.site,
+       p.display_name,
+       p.normalized_name,
+       t.cohort,
+       t.field_band,
+       t.game_type,
+       COUNT(DISTINCT t.id) AS tournaments_played,
+       COUNT(DISTINCT pt.tournament_id) FILTER (WHERE COALESCE(pt.prize, 0) > 0) AS cash_count,
+       COALESCE(SUM(pt.prize), 0) AS total_prizes,
+       COALESCE(SUM(pt.bounty), 0) AS total_bounty,
+       MIN(pt.finish_position) AS best_finish,
+       COALESCE(SUM(t.total_entry_cost * COALESCE(pt.entry_number, 1)), 0) AS total_cost,
+       COALESCE(SUM(pt.prize), 0) - COALESCE(SUM(t.total_entry_cost * COALESCE(pt.entry_number, 1)), 0) AS net_profit,
+       ROUND(CASE WHEN COALESCE(SUM(t.total_entry_cost * COALESCE(pt.entry_number, 1)), 0) > 0
+                  THEN (COALESCE(SUM(pt.prize), 0) / SUM(t.total_entry_cost * COALESCE(pt.entry_number, 1))) * 100 - 100
+                  ELSE 0 END, 1) AS roi_pct
+FROM {schema}.players p
+JOIN {schema}.player_tournaments pt ON pt.player_id = p.id
+JOIN {schema}.tournaments t ON t.id = pt.tournament_id
+GROUP BY p.id, p.site, p.display_name, p.normalized_name,
+         t.cohort, t.field_band, t.game_type;
+
+-- Per-day lifecycle view: first/last snapshot deltas per tournament.
+CREATE OR REPLACE VIEW {schema}.v_tournament_lifecycle AS
+SELECT t.id AS tournament_id, t.site, t.cohort, t.name,
+       t.start_time, t.status AS current_status,
+       s_first.captured_at AS first_captured_at,
+       s_first.entries AS first_entries,
+       s_first.players_remaining AS first_players_remaining,
+       s_last.captured_at AS last_captured_at,
+       s_last.entries AS last_entries,
+       s_last.players_remaining AS last_players_remaining,
+       s_last.prize_pool AS last_prize_pool,
+       s_last.small_blind AS last_small_blind,
+       s_last.big_blind AS last_big_blind,
+       s_last.ante AS last_ante,
+       COUNT(s.id) AS snapshot_count
+FROM {schema}.tournaments t
+LEFT JOIN {schema}.tournament_snapshots s ON s.tournament_id = t.id
+LEFT JOIN LATERAL (
+    SELECT captured_at, entries, players_remaining FROM {schema}.tournament_snapshots
+    WHERE tournament_id = t.id ORDER BY captured_at ASC LIMIT 1
+) s_first ON true
+LEFT JOIN LATERAL (
+    SELECT captured_at, entries, players_remaining, prize_pool,
+           small_blind, big_blind, ante FROM {schema}.tournament_snapshots
+    WHERE tournament_id = t.id ORDER BY captured_at DESC LIMIT 1
+) s_last ON true
+GROUP BY t.id, s_first.captured_at, s_first.entries, s_first.players_remaining,
+         s_last.captured_at, s_last.entries, s_last.players_remaining,
+         s_last.prize_pool, s_last.small_blind, s_last.big_blind, s_last.ante;
 """
 
 
@@ -397,4 +570,118 @@ def upsert_daily_stat(conn, stat_date, site, cohort, counts: dict) -> None:
              counts.get("captured", 0), counts.get("complete", 0),
              counts.get("partial", 0), counts.get("missing", 0),
              counts.get("entries_total", 0), counts.get("prize_pool_total", 0)))
+    conn.commit()
+
+
+def upsert_cohort(conn, tournament_pk: int, cohort, buyin_band, field_band,
+                  parser_version: str) -> None:
+    """Record an explicit cohort assignment (history preserved on change)."""
+    if cohort is None:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""INSERT INTO {schema_name()}.tournament_cohorts
+                (tournament_id, cohort, buyin_band, field_band, parser_version, assigned_at)
+                VALUES (%s,%s,%s,%s,%s,now())
+                ON CONFLICT (tournament_id, cohort, buyin_band, field_band) DO UPDATE SET
+                  assigned_at=now()""",
+            (tournament_pk, cohort, buyin_band, field_band, parser_version))
+    conn.commit()
+
+
+def update_quality(conn, tournament_pk: int, score: int, flags: list) -> None:
+    """Re-score a tournament after lifecycle data arrives (e.g. no results)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"UPDATE {schema_name()}.tournaments SET data_quality_score=%s, "
+            f"quality_flags=%s WHERE id=%s",
+            (score, flags, tournament_pk))
+    conn.commit()
+
+
+def upsert_table(conn, tournament_pk: int, site_table_id: str,
+                 table_name=None) -> Optional[int]:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""INSERT INTO {schema_name()}.tables
+                (tournament_id, site_table_id, table_name)
+                VALUES (%s,%s,%s)
+                ON CONFLICT (tournament_id, site_table_id) DO UPDATE SET
+                  table_name=COALESCE(EXCLUDED.table_name, {schema_name()}.tables.table_name)
+                RETURNING id""",
+            (tournament_pk, site_table_id, table_name))
+        return cur.fetchone()[0]
+
+
+def upsert_table_snapshot(conn, table_pk: int, snap: dict) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""INSERT INTO {schema_name()}.table_snapshots
+                (table_id, captured_at, players_count, seats, average_stack,
+                 small_blind, big_blind, ante)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (table_id, captured_at) DO UPDATE SET
+                  players_count=EXCLUDED.players_count, seats=EXCLUDED.seats,
+                  average_stack=EXCLUDED.average_stack,
+                  small_blind=EXCLUDED.small_blind, big_blind=EXCLUDED.big_blind,
+                  ante=EXCLUDED.ante""",
+            (table_pk, snap.get("captured_at"), snap.get("players_count"),
+             snap.get("seats"), snap.get("average_stack"), snap.get("small_blind"),
+             snap.get("big_blind"), snap.get("ante")))
+    conn.commit()
+
+
+def upsert_hand(conn, site: str, h: dict, tournament_pk=None, table_pk=None) -> Optional[int]:
+    """Insert a canonical hand. Returns hand pk or None if no site_hand_id."""
+    if not h.get("site_hand_id"):
+        return None
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""INSERT INTO {schema_name()}.hands
+                (site, site_hand_id, tournament_id, table_id, hand_number,
+                 played_at, small_blind, big_blind, ante, button_position,
+                 board, final_pot)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (site, site_hand_id) DO UPDATE SET
+                  tournament_id=COALESCE(EXCLUDED.tournament_id, {schema_name()}.hands.tournament_id),
+                  table_id=COALESCE(EXCLUDED.table_id, {schema_name()}.hands.table_id),
+                  played_at=COALESCE(EXCLUDED.played_at, {schema_name()}.hands.played_at),
+                  board=COALESCE(EXCLUDED.board, {schema_name()}.hands.board),
+                  final_pot=COALESCE(EXCLUDED.final_pot, {schema_name()}.hands.final_pot)
+                RETURNING id""",
+            (site, h["site_hand_id"], tournament_pk, table_pk,
+             h.get("hand_number"), h.get("played_at"), h.get("small_blind"),
+             h.get("big_blind"), h.get("ante"), h.get("button_position"),
+             h.get("board"), h.get("final_pot")))
+        return cur.fetchone()[0]
+
+
+def upsert_hand_player(conn, hand_pk: int, player_pk: int, hp: dict) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""INSERT INTO {schema_name()}.hand_players
+                (hand_id, player_id, seat, position, starting_stack, ending_stack, hole_cards)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (hand_id, player_id) DO UPDATE SET
+                  seat=EXCLUDED.seat, position=EXCLUDED.position,
+                  starting_stack=EXCLUDED.starting_stack,
+                  ending_stack=EXCLUDED.ending_stack,
+                  hole_cards=COALESCE(EXCLUDED.hole_cards, {schema_name()}.hand_players.hole_cards)""",
+            (hand_pk, player_pk, hp.get("seat"), hp.get("position"),
+             hp.get("starting_stack"), hp.get("ending_stack"), hp.get("hole_cards")))
+    conn.commit()
+
+
+def upsert_hand_action(conn, hand_pk: int, player_pk, a: dict) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            f"""INSERT INTO {schema_name()}.hand_actions
+                (hand_id, player_id, street, action_type, amount, pot_after, action_order)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (hand_id, action_order) DO UPDATE SET
+                  player_id=EXCLUDED.player_id, street=EXCLUDED.street,
+                  action_type=EXCLUDED.action_type, amount=EXCLUDED.amount,
+                  pot_after=EXCLUDED.pot_after""",
+            (hand_pk, player_pk, a.get("street"), a.get("action_type"),
+             a.get("amount"), a.get("pot_after"), a.get("action_order")))
     conn.commit()

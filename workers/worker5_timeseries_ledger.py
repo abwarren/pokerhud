@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from supabase import create_client, Client
 
 # Supabase config
-SUPABASE_URL = "https://kzqrdtagpykoylhuqcyv.supabase.co"
-SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', 
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6cXJkdGFncHlrb3lsaHVxY3l2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjA3MzEwNCwiZXhwIjoyMDkxNjQ5MTA0fQ.y5VXs_spu14SiOU4R_uLHZS2j0BTy8_wHilUQD_0D-s')
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://kzqrdtagpykoylhuqcyv.supabase.co")
+# Service-role key is a PRIVILEGED credential — env only, never committed.
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # My Players (the 9 bot accounts)
 MY_PLAYERS = [

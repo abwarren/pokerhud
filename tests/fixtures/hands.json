@@ -1,0 +1,85 @@
+{
+  "pokerbet": {
+    "t-1002": [
+      {
+        "site_hand_id": "pb-t1002-h000123",
+        "tournament_ref": "t-1002",
+        "table_ref": "tbl-7",
+        "table_name": "Table 7",
+        "hand_number": 123,
+        "played_at": "2026-08-10T20:15:00+02:00",
+        "small_blind": 400,
+        "big_blind": 800,
+        "ante": 100,
+        "button_position": 3,
+        "board": "AhKhQh",
+        "final_pot": 15600,
+        "players": [
+          {"display_name": "AceOfSpades", "seat": 1, "starting_stack": 80000, "ending_stack": 85000, "hole_cards": "AhKh"},
+          {"display_name": "RiverRat", "seat": 5, "starting_stack": 60000, "ending_stack": 52200}
+        ],
+        "actions": [
+          {"player": "AceOfSpades", "street": "preflop", "action_type": "raise", "amount": 2400, "pot_after": 4300},
+          {"player": "RiverRat", "street": "preflop", "action_type": "call", "amount": 2400, "pot_after": 6700},
+          {"player": "AceOfSpades", "street": "flop", "action_type": "bet", "amount": 6700, "pot_after": 13400},
+          {"player": "RiverRat", "street": "flop", "action_type": "fold", "amount": 0, "pot_after": 13400},
+          {"player": "AceOfSpades", "street": "showdown", "action_type": "win", "amount": 15600, "pot_after": 15600}
+        ]
+      },
+      {
+        "site_hand_id": "pb-t1002-h000124",
+        "tournament_ref": "t-1002",
+        "table_ref": "tbl-7",
+        "table_name": "Table 7",
+        "hand_number": 124,
+        "played_at": "2026-08-10T20:16:00+02:00",
+        "small_blind": 400,
+        "big_blind": 800,
+        "ante": 100,
+        "button_position": 6,
+        "board": "9c9d9s",
+        "final_pot": 9800,
+        "players": [
+          {"display_name": "GrinderZA", "seat": 2, "starting_stack": 45000, "ending_stack": 54800, "hole_cards": "AcAd"},
+          {"display_name": "RiverRat", "seat": 6, "starting_stack": 52200, "ending_stack": 42200}
+        ],
+        "actions": [
+          {"player": "RiverRat", "street": "preflop", "action_type": "raise", "amount": 2400, "pot_after": 4300},
+          {"player": "GrinderZA", "street": "preflop", "action_type": "raise", "amount": 7200, "pot_after": 11500},
+          {"player": "RiverRat", "street": "preflop", "action_type": "fold", "amount": 0, "pot_after": 11500}
+        ]
+      }
+    ]
+  },
+  "sunbet": {
+    "s-2001": [
+      {
+        "site_hand_id": "sb-s2001-h000045",
+        "tournament_ref": "s-2001",
+        "table_ref": "T4",
+        "table_name": "Table 4",
+        "hand_number": 45,
+        "played_at": "2026-08-10T20:10:00+02:00",
+        "small_blind": 100,
+        "big_blind": 200,
+        "ante": 25,
+        "button_position": 2,
+        "board": "7h7d2c",
+        "final_pot": 6200,
+        "players": [
+          {"display_name": "SunKing", "seat": 2, "starting_stack": 18000, "ending_stack": 21000, "hole_cards": "KhKs"},
+          {"display_name": "ChipChaser", "seat": 7, "starting_stack": 19000, "ending_stack": 16800}
+        ],
+        "actions": [
+          {"player": "SunKing", "street": "preflop", "action_type": "raise", "amount": 600, "pot_after": 1100},
+          {"player": "ChipChaser", "street": "preflop", "action_type": "call", "amount": 600, "pot_after": 1700},
+          {"player": "SunKing", "street": "flop", "action_type": "bet", "amount": 1200, "pot_after": 2900},
+          {"player": "ChipChaser", "street": "flop", "action_type": "call", "amount": 1200, "pot_after": 4100},
+          {"player": "SunKing", "street": "turn", "action_type": "bet", "amount": 2100, "pot_after": 6200},
+          {"player": "ChipChaser", "street": "turn", "action_type": "fold", "amount": 0, "pot_after": 6200},
+          {"player": "SunKing", "street": "showdown", "action_type": "win", "amount": 6200, "pot_after": 6200}
+        ]
+      }
+    ]
+  }
+}

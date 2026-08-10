@@ -29,11 +29,11 @@ import websockets
 # ── Config ──────────────────────────────────────────────────────────────────
 PARTNER_ID = "18751019"
 PRODUCT_ID = "3"
-# Auth tokens — will refresh on each run
-CLIENT_ID = "92311469"
-CLIENT_ID_HASH = "8d96fa1aae7d4c613ab396f3677ee1e9a9bb4d75c233156a80774a462fa84a09"
-PLAYER_ID = "357652843"
-TOKEN = "2F90D07AC6E160842CFC8757484A5857"
+# Auth tokens — env only, never committed (session-specific, refreshed per run)
+CLIENT_ID = os.environ.get("PB_CLIENT_ID", "")
+CLIENT_ID_HASH = os.environ.get("PB_CLIENT_ID_HASH", "")
+PLAYER_ID = os.environ.get("PB_PLAYER_ID", "")
+TOKEN = os.environ.get("PB_TOKEN", "")
 
 WS_URL = "wss://poker-general.skillgames-bc.com"
 GATEWAY_BASE = "https://sg-api.skillgames-bc.com"

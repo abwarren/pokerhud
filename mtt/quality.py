@@ -26,6 +26,7 @@ INFERRED_VALUE = "INFERRED_VALUE"
 DUPLICATE_EVENT = "DUPLICATE_EVENT"
 PARSER_ERROR = "PARSER_ERROR"
 CONTRADICTION = "DATA_MISMATCH"
+NO_RESULTS = "NO_RESULTS"
 
 WEIGHTS = {
     CRITICAL_ID: 25,
@@ -39,11 +40,17 @@ WEIGHTS = {
     DUPLICATE_EVENT: 10,
     PARSER_ERROR: 25,
     CONTRADICTION: 10,
+    NO_RESULTS: 15,
 }
 
 
-def score_tournament(t: dict) -> tuple[int, list[str]]:
-    """Return (score 0-100, flags list) for a canonical tournament dict."""
+def score_tournament(t: dict, extra: dict | None = None) -> tuple[int, list[str]]:
+    """Return (score 0-100, flags list) for a canonical tournament dict.
+
+    extra: optional context dict, e.g. {"no_results": True} when a completed
+    tournament's results capture produced no finishing data.
+    """
+    extra = extra or {}
     flags = []
     if not t.get("site_tournament_id") or not t.get("name"):
         flags.append(CRITICAL_ID)
@@ -65,8 +72,14 @@ def score_tournament(t: dict) -> tuple[int, list[str]]:
             flags.append(CONTRADICTION)
         if t.get("prize_pool") is None:
             flags.append(CONTRADICTION)
+        # prize pool below the guaranteed floor for a finished event is a red flag
+        if (t.get("prize_pool") is not None and t.get("guarantee") is not None
+                and t["prize_pool"] < t["guarantee"] * 0.9):
+            flags.append(CONTRADICTION)
     if isinstance(t.get("field_size"), int) and t["field_size"] > 0 and t.get("entries") is None:
         flags.append(PARTIAL_CAPTURE)
+    if extra.get("no_results"):
+        flags.append(NO_RESULTS)
 
     score = 100
     for f in flags:

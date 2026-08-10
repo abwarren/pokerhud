@@ -1,0 +1,65 @@
+{
+  "site": "sunbet",
+  "endpoint": "lobby-tournaments",
+  "captured_at": "2026-08-11T07:28:00+02:00",
+  "rows": [
+    {"start": "Aug 11, 09:00", "status": "Registering", "name": "Morning Glory Freeroll", "game": "NL Hold'em", "buyIn": "R0", "prize": "R200", "players": "27", "action": "R0"},
+    {"start": "Aug 11, 10:00", "status": "Registering", "name": "R1 Spin Up", "game": "NL Hold'em", "buyIn": "R1", "prize": "R500", "players": "8", "action": "R1"},
+    {"start": "Aug 11, 11:00", "status": "Registering", "name": "Mini Stack", "game": "NL Hold'em", "buyIn": "R50+R5", "prize": "R2000", "players": "0", "action": "R55"},
+    {"start": "Aug 11, 20:00", "status": "Registering", "name": "Tuesday Main Re-Entry", "game": "NL Hold'em", "buyIn": "R1000+R100", "prize": "R65000", "players": "0", "action": "R1100"},
+    {"start": "Aug 12, 20:00", "status": "Registering", "name": "Wednesday Main KO", "game": "NL Hold'em", "buyIn": "R400 + R80 + R400", "prize": "R40000", "players": "0", "action": "R880"},
+    {"start": "Aug 13, 20:00", "status": "Registering", "name": "Thursday Main Freeze", "game": "NL Hold'em", "buyIn": "R1000+R100", "prize": "R50000", "players": "0", "action": "R1100"},
+    {"start": "Aug 14, 20:00", "status": "Registering", "name": "Friday Main Re-Entry", "game": "NL Hold'em", "buyIn": "R600+R60", "prize": "R30000", "players": "0", "action": "R660"},
+    {"start": "Aug 10, 20:00", "status": "Completed", "name": "Monday Main Re-Buy", "game": "NL Hold'em", "buyIn": "R250+R25", "prize": "R25000", "players": "43", "action": "COMPLETED"}
+  ],
+  "details": {
+    "Tuesday Main Re-Entry": {
+      "id": "#8599",
+      "fullName": "Tuesday Main Re-Entry",
+      "gameType": "Hold'em NL",
+      "statusBadge": "Registering",
+      "startsIn": "In 12 h. 28 min.",
+      "registration": "Registration is running",
+      "totalPrizePool": "R65000",
+      "guaranteed": "R65000",
+      "buyInDetail": "R1000 + R100",
+      "players": "0"
+    },
+    "Thursday Main Freeze": {
+      "id": "#8600",
+      "fullName": "Thursday Main Freeze",
+      "gameType": "Hold'em NL",
+      "statusBadge": "Registering",
+      "startsIn": "In 2 d. 12 h.",
+      "registration": "Registration is running",
+      "totalPrizePool": "R50000",
+      "guaranteed": "R50000",
+      "buyInDetail": "R1000+R100",
+      "players": "0"
+    },
+    "Wednesday Main KO": {
+      "id": "#8601",
+      "fullName": "Wednesday Main KO",
+      "gameType": "Hold'em NL",
+      "statusBadge": "Registering",
+      "startsIn": "In 1 d. 12 h.",
+      "registration": "Registration is running",
+      "totalPrizePool": "R40000",
+      "guaranteed": "R40000",
+      "buyInDetail": "R400 + R80 + R400",
+      "players": "0"
+    },
+    "Mini Stack": {
+      "id": "#8602",
+      "fullName": "Mini Stack",
+      "gameType": "Hold'em NL",
+      "statusBadge": "Registering",
+      "startsIn": "In 3 h. 12 min.",
+      "registration": "Registration is running",
+      "totalPrizePool": "R2000",
+      "guaranteed": "R1000",
+      "buyInDetail": "R50 + R5",
+      "players": "0"
+    }
+  }
+}

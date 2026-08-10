@@ -1,0 +1,9 @@
+# mtt pipeline + tests
+psycopg2-binary>=2.9
+requests>=2.31
+websockets>=12
+pytest>=8
+
+# dashboard (legacy)
+flask>=3
+flask-cors>=6

@@ -11,8 +11,33 @@ from pathlib import Path
 app = Flask(__name__)
 CORS(app)
 
-DB = dict(host='localhost', port=5432, database='pokerhud',
-          user='warren', password='Gemm@143')
+import os
+from pathlib import Path
+
+DB = dict(host=os.environ.get('MTT_HOST', 'localhost'),
+          port=int(os.environ.get('MTT_PORT', '5432')),
+          database=os.environ.get('MTT_DBNAME', 'pokerhud'),
+          user=os.environ.get('MTT_USER', 'warren'))
+
+
+def _db_password():
+    """Env first, then the local untracked fallback file (never committed)."""
+    pw = os.environ.get('MTT_PASSWORD')
+    if pw:
+        return pw
+    try:
+        p = Path.home() / '.pokerhud_pgpass'
+        if p.exists():
+            lines = p.read_text().strip().splitlines()
+            return lines[0] if lines else None
+    except OSError:
+        return None
+    return None
+
+
+_password = _db_password()
+if _password:
+    DB['password'] = _password
 SCRAPED = Path(__file__).parent / 'scraped_data' / 'high_rollers'
 
 

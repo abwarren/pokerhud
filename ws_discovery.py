@@ -15,6 +15,7 @@ import json
 import time
 import sys
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -27,11 +28,11 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("ws_discovery")
 
-PARTNER_ID = "18751019"
-CLIENT_ID = "92311469"
-PLAYER_ID = "357652843"
-TOKEN = "2F90D07AC6E160842CFC8757484A5857"
-CLIENT_ID_HASH = "8d96fa1aae7d4c613ab396f3677ee1e9a9bb4d75c233156a80774a462fa84a09"
+PARTNER_ID = os.environ.get("PB_PARTNER_ID", "18751019")
+CLIENT_ID = os.environ.get("PB_CLIENT_ID", "")
+PLAYER_ID = os.environ.get("PB_PLAYER_ID", "")
+TOKEN = os.environ.get("PB_TOKEN", "")
+CLIENT_ID_HASH = os.environ.get("PB_CLIENT_ID_HASH", "")
 
 WS_HOST = "poker-general.skillgames-bc.com"
 GATEWAY = "sg-api.skillgames-bc.com"

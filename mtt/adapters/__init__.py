@@ -51,11 +51,13 @@ class FixtureAdapter(SiteAdapter):
     site = "fixture"
 
     def __init__(self, site: str, fixtures: list, snapshots: Optional[dict] = None,
-                 results_map: Optional[dict] = None):
+                 results_map: Optional[dict] = None,
+                 hands_map: Optional[dict] = None):
         self.site = site
         self.fixtures = fixtures          # list of raw tournament payloads
         self.snapshots = snapshots or {}  # ref -> list of snapshot payloads
         self.results_map = results_map or {}  # ref -> results payload
+        self.hands_map = hands_map or {}  # ref -> list of hand payloads
 
     def discover(self) -> list:
         return list(self.fixtures)
@@ -68,3 +70,6 @@ class FixtureAdapter(SiteAdapter):
 
     def results(self, ref: str) -> Optional[dict]:
         return self.results_map.get(ref)
+
+    def hand_data(self, ref: str) -> list:
+        return list(self.hands_map.get(ref, []))

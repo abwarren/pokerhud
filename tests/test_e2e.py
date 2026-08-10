@@ -27,6 +27,7 @@ PB_DAY = load("pokerbet_day.json")["tournaments"]
 SB_DAY = load("sunbet_day.json")["tournaments"]
 SNAPS = load("snapshots.json")
 RESULTS = load("results.json")
+HANDS = load("hands.json")
 DAY = date(2026, 8, 10)
 
 TOTAL_EXPECTED = len(PB_DAY) + len(SB_DAY)  # 10
@@ -47,7 +48,8 @@ def full_cycle(conn, tag: str):
     counters = {}
     for site, fixtures in (("pokerbet", PB_DAY), ("sunbet", SB_DAY)):
         adapter = FixtureAdapter(site, copy.deepcopy(fixtures),
-                                 copy.deepcopy(SNAPS), copy.deepcopy(RESULTS))
+                                 copy.deepcopy(SNAPS), copy.deepcopy(RESULTS),
+                                 hands_map=copy.deepcopy(HANDS.get(site, {})))
         counters[site] = ingest(conn, adapter, run_id=f"e2e-{tag}-{site}",
                                 raw_dir=os.environ["MTT_RAW_DIR"])
     return counters
@@ -78,7 +80,17 @@ def assert_cycle_valid(conn, tag: str, counters: dict):
     assert db.query(conn, f"SELECT COUNT(*) n FROM {s}.players")[0]["n"] == 6
     assert db.query(conn, f"SELECT COUNT(*) n FROM {s}.player_tournaments")[0]["n"] == 6
 
-    # raw preserved: discover+snapshot+results for every tournament
+    # explicit cohort assignments for every tournament
+    coh = db.query(conn, f"SELECT COUNT(*) n FROM {s}.tournament_cohorts")[0]["n"]
+    assert coh == TOTAL_EXPECTED, f"{tag}: expected {TOTAL_EXPECTED} cohort rows, got {coh}"
+
+    # hands + tables landed (2 pokerbet hands, 1 sunbet hand)
+    assert db.query(conn, f"SELECT COUNT(*) n FROM {s}.hands")[0]["n"] == 3
+    assert db.query(conn, f"SELECT COUNT(*) n FROM {s}.tables")[0]["n"] == 2
+    assert db.query(conn, f"SELECT COUNT(*) n FROM {s}.hand_actions")[0]["n"] == 15
+    assert db.query(conn, f"SELECT COUNT(*) n FROM {s}.hand_players")[0]["n"] == 6
+
+    # raw preserved: discover+snapshot+results+hands for every tournament
     raw = db.query(conn, f"SELECT site, endpoint, COUNT(*) n FROM {s}.raw_events GROUP BY site, endpoint")
     by = {(r["site"], r["endpoint"]): r["n"] for r in raw}
     assert by[("pokerbet", "discover")] == len(PB_DAY)
@@ -87,6 +99,8 @@ def assert_cycle_valid(conn, tag: str, counters: dict):
     assert by[("sunbet", "snapshot")] == 1
     assert by[("pokerbet", "results")] == 1
     assert by[("sunbet", "results")] == 1
+    assert by[("pokerbet", "hand")] == 2
+    assert by[("sunbet", "hand")] == 1
 
     # ledger rows for every site/cohort, R1000 present
     report = ledger.reconcile(conn, DAY)
@@ -95,6 +109,13 @@ def assert_cycle_valid(conn, tag: str, counters: dict):
         assert (site, "R1000") in cohorts
     text = ledger.render_report(report, DAY)
     assert "R1000" in text
+
+    # analytics views: cohort-separated, R1000 isolated
+    from mtt import analytics
+    summary = analytics.cohort_summary(conn)
+    assert ("pokerbet", "R1000") in {(r["site"], r["cohort"]) for r in summary}
+    export = analytics.export_day(conn, DAY)
+    assert len(export["r1000"]["tournaments"]) == 2
 
 
 def test_reparse_parser_v2(conn):

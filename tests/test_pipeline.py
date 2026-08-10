@@ -57,7 +57,8 @@ class TestIngestion:
                raw_dir=os.environ["MTT_RAW_DIR"])
         rows = db.query(conn, f"SELECT name, buyin, buyin_band, cohort FROM {db.schema_name()}.tournaments WHERE site='pokerbet'")
         bands = {(r["name"], r["buyin_band"], r["cohort"]) for r in rows}
-        assert ("1k Turbo Rebuy / Add-on", "R1000", "R1000") in bands
+        # R1000 = the R1,000 GUARANTEE tier (1k Turbo), not the R1,000 buy-in
+        assert ("1k Turbo Rebuy / Add-on", "HIGH", "R1000") in bands
         assert ("Lunch Time 20k", "SMALL", "SMALL") in bands
         assert ("R2k High Roller", "HIGH", "HIGH") in bands
         assert ("Deep Freeze R50", "MICRO", "MICRO") in bands

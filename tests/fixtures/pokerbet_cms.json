@@ -1,0 +1,47 @@
+{
+  "site": "pokerbet",
+  "endpoint": "cms-promotions",
+  "captured_at": "2026-08-11T08:00:00+02:00",
+  "data": [
+    {
+      "id": 109866,
+      "title": "Sunday Slam R200k Guaranteed",
+      "content": "<p>Join the Sunday Slam. Buy-in of R700+R70. <strong>Guaranteed</strong> prize pool of R200,000. Tournament starts 06:00 pm.</p>"
+    },
+    {
+      "id": 109867,
+      "title": "Wacky Wednesday R125k GTD",
+      "content": "<p>Buy-in R250 + R25. Guarantee R125,000. Starts 07:00 pm. Re-entry available.</p>"
+    },
+    {
+      "id": 109868,
+      "title": "EPT Barcelona Package (Target)",
+      "content": "<p>Win a seat to EPT Barcelona. Buy-in of R1,999. Satellite tournament.</p>"
+    },
+    {
+      "id": 109869,
+      "title": "Monday Madness R125k",
+      "content": "<p>Guaranteed prize pool R125,000. Turbo rebuy tournament.</p>"
+    },
+    {
+      "id": 109870,
+      "title": "Casino Welcome Boost",
+      "content": "<p>Get a 100% casino bonus on your first deposit. T&amp;Cs apply.</p>"
+    },
+    {
+      "id": 109871,
+      "title": "1k Turbo Rebuy / Add-on",
+      "content": "<p>Buy-in of R1,000. Rebuys and add-ons allowed. Guaranteed R1,000 prize pool.</p>"
+    },
+    {
+      "id": 109872,
+      "title": "Weekly Rake Back Ts&Cs",
+      "content": "<p>How weekly rake back is calculated on PokerBet. Terms and conditions apply.</p>"
+    },
+    {
+      "id": 109873,
+      "title": "Refer a Friend",
+      "content": "<p>Invite a friend and both get a poker bonus.</p>"
+    }
+  ]
+}
