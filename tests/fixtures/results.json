@@ -1,0 +1,18 @@
+{
+  "t-1003": {
+    "final_status": "completed",
+    "players": [
+      {"site_player_id": "p-11", "display_name": "AceOfSpades", "finish_position": 1, "prize": 7800},
+      {"site_player_id": "p-22", "display_name": "GrinderZA", "finish_position": 2, "prize": 5200},
+      {"site_player_id": "p-33", "display_name": "RiverRat", "finish_position": 3, "prize": 3600}
+    ]
+  },
+  "s-2002": {
+    "final_status": "completed",
+    "players": [
+      {"site_player_id": "p-101", "display_name": "SunKing", "finish_position": 1, "prize": 5900},
+      {"site_player_id": "p-102", "display_name": "BluffBuster", "finish_position": 2, "prize": 3900},
+      {"site_player_id": "p-103", "display_name": "ChipChaser", "finish_position": 3, "prize": 2700}
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "t-1001": [
+    {
+      "captured_at": "2026-08-10T17:30:00+02:00",
+      "status": "registration",
+      "entries": 45,
+      "prize_pool": 45000
+    },
+    {
+      "captured_at": "2026-08-10T18:30:00+02:00",
+      "status": "late_reg",
+      "entries": 87,
+      "players_remaining": 86,
+      "tables_active": 9,
+      "current_level": 3,
+      "small_blind": 100,
+      "big_blind": 200,
+      "ante": 25,
+      "average_stack": 18390
+    }
+  ],
+  "t-1002": [
+    {
+      "captured_at": "2026-08-10T19:30:00+02:00",
+      "status": "running",
+      "entries": 412,
+      "players_remaining": 288,
+      "tables_active": 24,
+      "current_level": 7,
+      "small_blind": 400,
+      "big_blind": 800,
+      "ante": 100,
+      "average_stack": 44000,
+      "prize_pool": 137000
+    }
+  ],
+  "s-2001": [
+    {
+      "captured_at": "2026-08-10T19:00:00+02:00",
+      "status": "registration",
+      "entries": 90,
+      "prize_pool": 90000
+    },
+    {
+      "captured_at": "2026-08-10T20:00:00+02:00",
+      "status": "running",
+      "entries": 121,
+      "players_remaining": 118,
+      "tables_active": 10,
+      "current_level": 4,
+      "small_blind": 100,
+      "big_blind": 200,
+      "ante": 25,
+      "average_stack": 18000,
+      "prize_pool": 121000
+    }
+  ]
+}

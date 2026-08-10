@@ -1,0 +1,68 @@
+{
+  "site": "sunbet",
+  "endpoint": "lobby-tournaments",
+  "tournaments": [
+    {
+      "site": "sunbet",
+      "site_tournament_id": "s-2001",
+      "name": "SunBet R1000 Big",
+      "game_type": "NLHE",
+      "format": "MTT",
+      "currency": "ZAR",
+      "buyin": 1000,
+      "fee": 90,
+      "total_entry_cost": 1090,
+      "guarantee": 30000,
+      "start_time": "2026-08-10T19:30:00+02:00",
+      "status": "running",
+      "entries": 121
+    },
+    {
+      "site": "sunbet",
+      "site_tournament_id": "s-2002",
+      "name": "SunBet R200 Freezeout",
+      "game_type": "NLHE",
+      "format": "MTT",
+      "currency": "ZAR",
+      "buyin": 200,
+      "fee": 20,
+      "total_entry_cost": 220,
+      "guarantee": 15000,
+      "start_time": "2026-08-10T15:00:00+02:00",
+      "status": "completed",
+      "field_size": 118,
+      "entries": 118,
+      "prize_pool": 23600
+    },
+    {
+      "site": "sunbet",
+      "site_tournament_id": "s-2003",
+      "name": "SunBet R60 Turbo",
+      "game_type": "NLHE",
+      "format": "MTT",
+      "currency": "ZAR",
+      "buyin": 60,
+      "fee": 6,
+      "total_entry_cost": 66,
+      "guarantee": 6000,
+      "start_time": "2026-08-10T17:00:00+02:00",
+      "status": "running",
+      "entries": 750
+    },
+    {
+      "site": "sunbet",
+      "site_tournament_id": "s-2004",
+      "name": "SunBet R550 PLO",
+      "game_type": "PLO",
+      "format": "MTT",
+      "currency": "ZAR",
+      "buyin": 550,
+      "fee": 55,
+      "total_entry_cost": 605,
+      "guarantee": 25000,
+      "start_time": "2026-08-10T20:30:00+02:00",
+      "status": "registration",
+      "entries": 44
+    }
+  ]
+}
