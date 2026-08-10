@@ -31,6 +31,8 @@ def tracked_py_files():
 def test_no_forbidden_secret_literals():
     hits = []
     for f in tracked_py_files():
+        if f.name == "test_security.py":
+            continue  # this file's own FORBIDDEN list is its test data
         try:
             text = f.read_text()
         except OSError:
