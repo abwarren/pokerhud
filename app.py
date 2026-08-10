@@ -2183,6 +2183,13 @@ def scrape_tables_endpoint():
         # Import scraper module
         import table_scraper
 
+        # scrape_plo6_tables lives in dublin-mirror/plo-w4p/table_scraper.py,
+        # not the root copy — guard so this route 501s cleanly instead of
+        # raising AttributeError (legacy wiring hazard, see docs/security-audit.md)
+        if not hasattr(table_scraper, "scrape_plo6_tables"):
+            return jsonify({"ok": False,
+                            "error": "scrape_plo6_tables not available in this build"}), 501
+
         result = table_scraper.scrape_plo6_tables(headless=headless)
 
         if result["ok"]:

@@ -63,6 +63,22 @@ def test_cms_non_poker_filtered(adapter):
     assert adapter._cms_to_tournament(CMS["data"][7]) is None   # refer a friend
 
 
+def test_cms_live_payload_real_capture(adapter):
+    """Real 2026-08-11 CMS payload: only the Sunday Slam survives filtering."""
+    live = load("pokerbet_cms_live.json")
+    tours = [t for t in (adapter._cms_to_tournament(item) for item in live["data"])
+             if t]
+    assert len(tours) == 1, [t["name"] for t in tours]
+    t = tours[0]
+    assert t["site_tournament_id"] == "cms-109866"
+    assert t["name"] == "Sunday Slam R200k Guaranteed"
+    assert t["buyin"] == 700 and t["fee"] == 70 and t["total_entry_cost"] == 770
+    assert t["guarantee"] == 250000
+    assert t["start_time_raw"] == "06:00 pm"   # adapter canonicalizes '6:00pm'
+    classifier.classify_tournament(t)
+    assert t["cohort"] == "MID"            # buyin 700, GTD 250k — not the R1k tier
+
+
 def test_cms_r1000_buyin(adapter):
     t = adapter._cms_to_tournament(CMS["data"][5])   # 1k Turbo
     assert t["buyin"] == 1000 and t["guarantee"] == 1000
