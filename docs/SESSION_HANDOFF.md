@@ -33,6 +33,10 @@ via vertical slices + agent orchestration. Slice map: docs/SLICES.md.
   registry (webapp/selector_registry.py, startup validation + GET /api/selectors/status);
   cross-site bleed tests. 28566a2. 100/100 tests green. Live loopback verified both sites
   coexist on same table_id.
+- Slice 6 (SSE push): /api/events stream (bounded maxsize-1 queues, drop-old, 15s heartbeat,
+  initial-state frame); _notify_sse() on snapshot + command-queue mutations; remote-w4p.html
+  EventSource with polling fallback (sseLive flag), site-aware sendCmd. 4fc291f. 102/102 tests.
+  Live verified: initial frame + mutation push over HTTP.
 
 ## FILES CHANGED (this session)
 - webapp/equity.py (eval7 module-level guarded import), tests/test_equity.py (new, 6 tests)
@@ -63,9 +67,9 @@ via vertical slices + agent orchestration. Slice map: docs/SLICES.md.
   N4P_SEAT_SECRET from env (config defaults empty).
 
 ## NEXT VERTICAL SLICE
-- Slice 6 (Phase 6 — Efficiency): SSE push on table state (replaces /api/table/latest polling;
-  reuse legacy unified-frontend analysis), then one page (remote grid + equity panel).
-  Evidence: request rate per UI drops ≥90%.
+- Slice 6 remaining: "one page (remote grid + equity panel)" — the remote-w4p.html and
+  dashboard are still separate pages; merge the equity panel into the remote grid page
+  (Phase B of legacy unified-frontend analysis). Evidence: dashboard + remote on one page.
 
 ## FIRST ACTION ON RESUME
 cd ~/projects/poker/pokerhud && git status -sb && git log --oneline -3 && ss -tlnp | grep ':8899'
