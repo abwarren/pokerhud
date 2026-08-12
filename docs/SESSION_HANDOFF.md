@@ -37,6 +37,14 @@ via vertical slices + agent orchestration. Slice map: docs/SLICES.md.
   initial-state frame); _notify_sse() on snapshot + command-queue mutations; remote-w4p.html
   EventSource with polling fallback (sseLive flag), site-aware sendCmd. 4fc291f. 102/102 tests.
   Live verified: initial frame + mutation push over HTTP.
+- Slice 7 (auto-actions, PLAN TB-004): webapp/auto_actions.py pure engine (cf/cc/kh + off);
+  per-table rules via GET/PUT /api/auto-rules (persisted in state file under _auto_rules);
+  trigger in post_snapshot on hero turn queues command (source=auto, no-duplicate guard);
+  header selector in remote UI. 58c7dac. 113/113 tests. Live TB-004 verified.
+- Slice 8 (one-page UI): equity panel merged into remote grid — auto-computes via /api/equity
+  on hand/board change (variant map plo→plo4; exact when board complete, else sampled 20K);
+  fixed multi-hero hole-card cache bug (last hero got first hero's cards → dup card error);
+  +regression test. 7973e7d. 114/114 tests. Browser-verified: panel shows hero1 48.31/hero2 51.69.
 
 ## FILES CHANGED (this session)
 - webapp/equity.py (eval7 module-level guarded import), tests/test_equity.py (new, 6 tests)
@@ -67,9 +75,10 @@ via vertical slices + agent orchestration. Slice map: docs/SLICES.md.
   N4P_SEAT_SECRET from env (config defaults empty).
 
 ## NEXT VERTICAL SLICE
-- Slice 6 remaining: "one page (remote grid + equity panel)" — the remote-w4p.html and
-  dashboard are still separate pages; merge the equity panel into the remote grid page
-  (Phase B of legacy unified-frontend analysis). Evidence: dashboard + remote on one page.
+- All PLAN.md slices delivered (1-5 equivalents + auto-actions + one-page UI + SSE).
+  Remaining harmonization: Phase 5 decommission (er containers — BLOCKED on user approval),
+  Phase 6 tail (SSE for dashboard? not required). Optional: exact-equity for <5-card boards
+  (currently sampled 20K); SVG board fingerprinting for SunBet.
 
 ## FIRST ACTION ON RESUME
 cd ~/projects/poker/pokerhud && git status -sb && git log --oneline -3 && ss -tlnp | grep ':8899'
