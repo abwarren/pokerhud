@@ -69,6 +69,7 @@ limiter = Limiter(
 
 from .config import (N4P_SEAT_SECRET, TRACKER_API_KEY, SEAT_TTL, CMD_TTL,
                      PERSIST_INT, STATE_FILE, STATIC_DIR)
+from . import auto_actions
 
 # Logger level is set inside start_background() (needs app context) — not here.
 
@@ -87,6 +88,11 @@ _store_lock    = threading.Lock()
 # Last-known-good table view cache (prevents UI flicker on partial/empty state)
 _last_good_view = None   # {"view": dict, "ts": float}
 _STALE_MAX_AGE  = 5.0    # seconds: max age before stale cache expires
+
+# ── Auto-action rules (slice 7) ────────────────────────────────────────────────
+# key: (site, table_id) → rule ('off' | 'cf' | 'cc' | 'kh'). Persisted in the
+# state file under the reserved "_auto_rules" key (skipped by the table loader).
+_auto_rules = {}
 
 # ── SSE push (slice 6) ─────────────────────────────────────────────────────────
 # Subscribers are bounded queues (maxsize=1, drop-old) so a slow client never
@@ -486,29 +492,41 @@ def _table_view(table):
 # ── P1: State persistence ──────────────────────────────────────────────────────
 
 def _serialise_state():
-    """Return a JSON-safe snapshot of _tables (seats only — no lock held here).
-    Keys are f'{site}::{table_id}' (double colon) so legacy single-key JSON
-    rows are ignored safely on load."""
+    """Return a JSON-safe snapshot of _tables + auto-rules.
+    Table keys are f'{site}::{table_id}' (double colon); auto-rules live under
+    the reserved '_auto_rules' key so legacy single-key rows are ignored."""
     return {
-        f"{site}::{tid}": {
-            **{k: v for k, v in t.items() if k != "seats"},
-            "seats": {
-                str(sno): seat
-                for sno, seat in t["seats"].items()
+        **{
+            f"{site}::{tid}": {
+                **{k: v for k, v in t.items() if k != "seats"},
+                "seats": {
+                    str(sno): seat
+                    for sno, seat in t["seats"].items()
+                }
             }
-        }
-        for (site, tid), t in _tables.items()
+            for (site, tid), t in _tables.items()
+        },
+        "_auto_rules": {
+            f"{site}::{tid}": rule
+            for (site, tid), rule in _auto_rules.items()
+        },
     }
 
 
 def _load_state():
-    """Load persisted state from disk into _tables on startup.
+    """Load persisted state from disk into _tables + _auto_rules on startup.
     Only 'site::table_id' keys are loaded; legacy single-key rows are skipped."""
     if not STATE_FILE.exists():
         return
     try:
         raw = json.loads(STATE_FILE.read_text(encoding='utf-8'))
         for key, t in raw.items():
+            if key == "_auto_rules":
+                for rk, rule in (t or {}).items():
+                    if "::" in rk:
+                        site, tid = rk.split("::", 1)
+                        _auto_rules[(site, tid)] = rule
+                continue
             if '::' not in key:
                 continue  # legacy single-key JSON — ignored safely
             site, tid = key.split('::', 1)
@@ -516,9 +534,28 @@ def _load_state():
             t["table_id"] = tid
             t["seats"] = {int(k): v for k, v in t.get("seats", {}).items()}
             _tables[(site, tid)] = t
-        current_app.logger.info(f"[PERSIST] Loaded {len(_tables)} table(s) from {STATE_FILE}")
+        current_app.logger.info(
+            f"[PERSIST] Loaded {len(_tables)} table(s), {len(_auto_rules)} auto-rule(s) from {STATE_FILE}"
+        )
     except Exception as e:
         current_app.logger.warning(f"[PERSIST] Could not load state: {e}")
+
+
+def _write_state(snapshot) -> None:
+    """Write the state snapshot to disk (tmp + atomic replace). No lock held."""
+    tmp = STATE_FILE.with_suffix('.tmp')
+    tmp.write_text(json.dumps(snapshot, default=str), encoding='utf-8')
+    tmp.replace(STATE_FILE)
+
+
+def _persist_now() -> None:
+    """Synchronous persist (used by config writes; outside _store_lock)."""
+    try:
+        with _store_lock:
+            snapshot = _serialise_state()
+        _write_state(snapshot)
+    except Exception as e:
+        current_app.logger.warning(f"[PERSIST] Write failed: {e}")
 
 
 def _persist_loop():
@@ -528,10 +565,7 @@ def _persist_loop():
         try:
             with _store_lock:
                 snapshot = _serialise_state()
-            # Disk write outside lock
-            tmp = STATE_FILE.with_suffix('.tmp')
-            tmp.write_text(json.dumps(snapshot, default=str), encoding='utf-8')
-            tmp.replace(STATE_FILE)
+            _write_state(snapshot)
         except Exception as e:
             current_app.logger.warning(f"[PERSIST] Write failed: {e}")
 
@@ -759,6 +793,26 @@ def post_snapshot():
                 _command_queue[token]              = cashout_cmd
                 _cashout_state[token]['requested'] = False
 
+        # ── Auto-action trigger (slice 7): hero on turn + rule active → queue ──
+        rule = _auto_rules.get((site, table_id), "off")
+        if rule != "off":
+            actions = payload.get("available_actions") or []
+            cmd = auto_actions.decide(rule, actions)
+            if cmd:
+                existing = _command_queue.get(token)
+                if not (existing and existing.get("status") == "pending"):
+                    auto_cmd = {
+                        'id':        str(uuid.uuid4())[:8],
+                        **cmd,
+                        'queued_at': ts,
+                        'status':    'pending',
+                        'source':    'auto',
+                    }
+                    _command_queue[token] = auto_cmd
+                    current_app.logger.info(
+                        f"[AUTO] {rule} → {auto_cmd['type']} table={site}/{table_id} seat={hero_seat_no}"
+                    )
+
     # Log outside lock
     if cashout_cmd:
         current_app.logger.info(f"[CASHOUT] Auto-queued table={site}/{table_id} seat_no={hero_seat_no}")
@@ -772,6 +826,31 @@ def post_snapshot():
         'table_id':   table_id,
         'site':       site,
     })
+
+# ── Endpoint: auto-rules (slice 7) ────────────────────────────────────────────
+
+@remote_bp.route('/api/auto-rules', methods=['GET'])
+def get_auto_rules():
+    with _store_lock:
+        rules = {
+            f"{site}/{tid}": rule
+            for (site, tid), rule in _auto_rules.items()
+        }
+    return jsonify({'ok': True, 'rules': rules})
+
+
+@remote_bp.route('/api/auto-rules/<site>/<table_id>', methods=['PUT'])
+def put_auto_rule(site, table_id):
+    payload = request.get_json(silent=True) or {}
+    try:
+        rule = auto_actions.validate_rule(payload.get('rule'))
+    except auto_actions.AutoActionError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    with _store_lock:
+        _auto_rules[(site, table_id)] = rule
+    _persist_now()
+    _notify_sse()
+    return jsonify({'ok': True, 'site': site, 'table_id': table_id, 'rule': rule})
 
 # ── Endpoint 2: GET /api/commands/pending ─────────────────────────────────────
 

@@ -552,6 +552,12 @@
 <header>
   <h1>W4P REMOTE</h1>
   <div class="hdr-right">
+    <select id="auto-rule" title="Auto-action rule (per table)">
+      <option value="off">Auto: Off</option>
+      <option value="cf">Auto: C/F</option>
+      <option value="cc">Auto: C/C</option>
+      <option value="kh">Auto: KH</option>
+    </select>
     <span id="conn-label">--</span>
     <span id="conn-dot" class="conn-dot"></span>
   </div>
@@ -657,6 +663,7 @@ async function fetchTable() {
       dot.className = 'conn-dot ok';
       label.textContent = 'v' + (j.table.state_version || '?');
       lastTable = j.table;
+      loadAutoRule();
     } else {
       dot.className = 'conn-dot';
       label.textContent = 'no table';
@@ -674,6 +681,7 @@ async function fetchTable() {
 var sseLive = false;
 function applySseTable(tbl) {
   lastTable = tbl;
+  loadAutoRule();
   render();
 }
 function startSse() {
@@ -692,6 +700,31 @@ function startSse() {
 }
 
 // ── API: Send command ────────────────────────
+
+var _lastRuleKey = null;
+function loadAutoRule() {
+  var sel = document.getElementById('auto-rule');
+  var key = (lastTable && lastTable.site) ? lastTable.site + '/' + lastTable.table_id : null;
+  if (!sel || !key || key === _lastRuleKey) return;
+  _lastRuleKey = key;
+  fetch(API + '/auto-rules').then(function (r) { return r.json(); }).then(function (j) {
+    sel.value = (j.rules && j.rules[key]) || 'off';
+  }).catch(function () { sel.value = 'off'; });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var sel = document.getElementById('auto-rule');
+  if (sel) sel.addEventListener('change', function () {
+    var key = (lastTable && lastTable.site) ? lastTable.site + '/' + lastTable.table_id : null;
+    if (!key) return;
+    fetch(API + '/auto-rules/' + key, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule: sel.value })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { sel.value = 'off'; logCmd(null, 'auto', null, false, j.error); }
+    }).catch(function () { sel.value = 'off'; });
+  });
+});
 
 async function sendCmd(seatNo, cmdType, amount) {
   var tableId = lastTable ? lastTable.table_id : null;
