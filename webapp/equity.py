@@ -20,6 +20,11 @@ SUITS = "hdcs"
 
 RUNOUT_CAP = 200_000
 
+try:
+    import eval7  # guarded — app boots without it (status reports offline)
+except ImportError:  # pragma: no cover
+    eval7 = None
+
 
 class EquityError(ValueError):
     pass
@@ -27,6 +32,8 @@ class EquityError(ValueError):
 
 def _parse_card(token: str):
     """'Ah' -> eval7.Card; tolerates '10s' -> 'Ts'. Raises EquityError on junk."""
+    if eval7 is None:
+        raise EquityError("eval7 not installed")
     t = token.strip()
     if t[:2] == "10":
         t = "T" + t[2:]
@@ -51,6 +58,8 @@ def _hole_n(variant: str) -> int:
 
 
 def _best(hand, board, hole_n: int) -> int:
+    if eval7 is None:
+        raise EquityError("eval7 not installed")
     if hole_n == 2:
         return eval7.evaluate(list(hand) + list(board))
     best = -1
@@ -69,6 +78,7 @@ def equity(hands, board, variant: str, samples: Optional[int] = None) -> dict:
     """
     t0 = perf_counter()
     import eval7  # lazy — app boots without it
+    assert eval7 is not None  # pragma: no cover — import above guarantees it
 
     hole_n = _hole_n(variant)
     if len(hands) < 2:
