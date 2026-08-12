@@ -29,6 +29,19 @@ def create_app() -> Flask:
     from webapp.dashboard_bp import dashboard_bp
     from webapp.equity_bp import equity_bp
     from webapp.remote_bp import remote_bp
+    from webapp.selector_registry import load_profiles, registry_status
+
+    # Slice 4c — selector registry: fail-fast validation at startup (non-fatal:
+    # dashboard/equity must never be held hostage by extension profile edits).
+    try:
+        load_profiles()
+        app.logger.info("[SELECTORS] profiles valid: evenbet.json, betconstruct.json")
+    except Exception as e:  # SelectorRegistryError
+        app.logger.critical(f"[SELECTORS] registry error: {e}")
+
+    @app.get("/api/selectors/status")
+    def selectors_status():
+        return registry_status()
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(equity_bp)

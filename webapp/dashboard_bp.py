@@ -29,13 +29,21 @@ th{color:#8b949e;font-weight:600}
 .pulse b{display:block;font-size:22px;color:#3fb950}
 </style></head><body>
 <h1>MTT HUD — PokerBet + SunBet</h1>
+<div style="margin:10px 0"><label for="site">Site</label>
+<select id="site">
+<option value="all">All</option>
+<option value="pokerbet">PokerBet</option>
+<option value="sunbet">SunBet</option>
+</select></div>
 <div class="pulse" id="pulse"></div>
 <div id="content"><p>Loading…</p></div>
 <script>
 const $=id=>document.getElementById(id);
 async function load(){
+  const site=($('site')&&$('site').value)||'all';
+  const q=site==='all'?'':'?site='+encodeURIComponent(site);
   const [sched,pulse]=await Promise.all([
-    fetch('/api/schedule').then(r=>r.json()),
+    fetch('/api/schedule'+q).then(r=>r.json()),
     fetch('/api/pulse').then(r=>r.json()),
   ]);
   $('pulse').innerHTML=`<div><b>${pulse.tournaments||0}</b>tournaments</div>
@@ -47,6 +55,7 @@ async function load(){
     <td class="status-${(t.status||'').toLowerCase().replace(/\\s+/g,'')}">${t.status||''}</td></tr>`).join('');
   $('content').innerHTML=`<table><thead><tr><th>Name</th><th>Site</th><th>Buy-in</th><th>GTD</th><th>Cohort</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+$('site').addEventListener('change',load);
 load();setInterval(load,30000);
 </script></body></html>"""
 
@@ -63,13 +72,18 @@ def index():
 @dashboard_bp.get("/api/schedule")
 def schedule():
     try:
+        site = (request.args.get("site", "all") or "all").strip().lower()
+        sql = ("SELECT name, site, buyin, guarantee, cohort, status, start_time "
+               "FROM mtt.tournaments WHERE status <> 'completed'")
+        params = []
+        if site in ("pokerbet", "sunbet"):
+            sql += " AND site = %s"
+            params.append(site)
+        sql += (" ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'late registration' THEN 1 "
+                "WHEN 'registration' THEN 2 ELSE 3 END, start_time LIMIT 200")
         conn = _get_conn()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT name, site, buyin, guarantee, cohort, status, start_time "
-            "FROM mtt.tournaments WHERE status <> 'completed' "
-            "ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'late registration' THEN 1 "
-            "WHEN 'registration' THEN 2 ELSE 3 END, start_time LIMIT 200")
+        cur.execute(sql, params)
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
         conn.close()
@@ -82,12 +96,18 @@ def schedule():
 @dashboard_bp.get("/api/players")
 def players():
     try:
+        site = (request.args.get("site", "all") or "all").strip().lower()
+        sql = ("SELECT site, display_name, normalized_name, count(*) AS tournaments "
+               "FROM mtt.players")
+        params = []
+        if site in ("pokerbet", "sunbet"):
+            sql += " WHERE site = %s"
+            params.append(site)
+        sql += (" GROUP BY site, display_name, normalized_name "
+                "ORDER BY tournaments DESC LIMIT 200")
         conn = _get_conn()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT site, display_name, normalized_name, count(*) AS tournaments "
-            "FROM mtt.players GROUP BY site, display_name, normalized_name "
-            "ORDER BY tournaments DESC LIMIT 200")
+        cur.execute(sql, params)
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
         conn.close()
