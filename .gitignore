@@ -28,3 +28,7 @@ Scrapegraph-ai/
 # Scraped output
 scraped_data/
 raw/
+
+# Runtime state (merged webapp)
+webapp/var/
+*.pid

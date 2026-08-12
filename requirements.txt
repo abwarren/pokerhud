@@ -7,3 +7,7 @@ pytest>=8
 # dashboard (legacy)
 flask>=3
 flask-cors>=6
+flask-limiter>=3
+
+# in-process equity engine (install from local wheel: vendor/eval7-0.1.10-*.whl)
+eval7==0.1.10

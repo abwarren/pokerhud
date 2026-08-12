@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLO Remote System - Shell</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a1a; color: #fff; }
+
+        .status-bar {
+            background: #2a2a2a;
+            padding: 10px 20px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-dot[data-status="healthy"] { background: #0f0; box-shadow: 0 0 5px #0f0; }
+        .status-dot[data-status="offline"] { background: #f00; }
+        .status-dot[data-status="unknown"] { background: #888; }
+
+        .tabs {
+            background: #2a2a2a;
+            border-bottom: 1px solid #444;
+            display: flex;
+            gap: 5px;
+            padding: 0 20px;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab:hover { color: #fff; }
+        .tab.active { color: #4a9eff; border-bottom-color: #4a9eff; }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            max-width: 1400px;
+        }
+
+        .tab-content.active { display: block; }
+
+        .metrics { max-width: 1200px; }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .metric-card { background: #2a2a2a; padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        .metric-card h3 { margin-bottom: 10px; color: #4a9eff; font-size: 14px; text-transform: uppercase; }
+        .metric-value { font-size: 32px; font-weight: bold; color: #fff; }
+        .metric-label { font-size: 12px; color: #999; margin-top: 5px; }
+        .last-update { margin-left: auto; color: #888; font-size: 12px; }
+
+        .table-list, .command-list, .remote-table-list { display: grid; gap: 10px; }
+
+        .table-item, .command-item {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .table-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .command-item {
+            display: grid;
+            grid-template-columns: 3fr 2fr 1fr 1fr;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .table-item.stale, .command-item.stale { opacity: 0.5; }
+        .table-item.active { border-left: 3px solid #0f0; }
+        .command-item.pending { border-left: 3px solid #f90; }
+
+        .table-id, .command-text { font-weight: bold; color: #4a9eff; }
+        .table-meta, .command-meta { font-size: 12px; color: #888; }
+        .table-age, .command-age { font-size: 12px; }
+        .table-age.fresh, .command-age.fresh { color: #0f0; }
+        .table-age.stale { color: #f90; }
+        .table-age.old { color: #f00; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .remote-table-card {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .remote-table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .seats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .seat-card {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .seat-card.active { border-color: #0f0; }
+        .seat-card.hero { border-color: #4a9eff; border-width: 2px; }
+
+        .seat-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .seat-name { font-weight: bold; color: #fff; }
+        .seat-stack { color: #0f0; }
+        .seat-status { font-size: 11px; color: #888; }
+        .seat-command {
+            margin-top: 5px;
+            padding: 4px 8px;
+            background: #f90;
+            color: #000;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="status-bar">
+        <div id="status-remote">
+            <span class="status-dot" data-status="unknown"></span> Remote
+        </div>
+        <div id="status-collector">
+            <span class="status-dot" data-status="unknown"></span> Collector
+        </div>
+        <div id="status-engine">
+            <span class="status-dot" data-status="unknown"></span> Engine
+        </div>
+        <div class="last-update" id="last-update">-</div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="remote">Remote</button>
+        <button class="tab" data-tab="tables">Tables</button>
+    </div>
+
+    <div id="tab-overview" class="tab-content active">
+        <h2 style="margin-bottom: 20px;">System Overview</h2>
+        <div class="metric-grid">
+            <div class="metric-card">
+                <h3>Uptime</h3>
+                <p class="metric-value" id="remote-uptime">-</p>
+                <p class="metric-label">Remote Control Service</p>
+            </div>
+            <div class="metric-card">
+                <h3>Memory</h3>
+                <p class="metric-value" id="remote-memory">-</p>
+                <p class="metric-label">Current Usage</p>
+            </div>
+            <div class="metric-card">
+                <h3>Active Tables</h3>
+                <p class="metric-value" id="metric-tables">-</p>
+                <p class="metric-label">Currently Tracked</p>
+            </div>
+            <div class="metric-card">
+                <h3>Active Seats</h3>
+                <p class="metric-value" id="metric-seats">-</p>
+                <p class="metric-label">Players Connected</p>
+            </div>
+            <div class="metric-card">
+                <h3>Command Queue</h3>
+                <p class="metric-value" id="metric-commands">-</p>
+                <p class="metric-label">Pending Actions</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-remote" class="tab-content">
+        <h2 style="margin-bottom: 20px;">Remote Control</h2>
+
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: #4a9eff; margin-bottom: 10px;">Pending Commands</h3>
+            <div id="commands-list" class="command-list">
+                <div class="empty-state">Loading command queue...</div>
+            </div>
+        </div>
+
+        <div>
+            <h3 style="color: #4a9eff; margin-bottom: 10px;">Active Tables</h3>
+            <div id="remote-tables-list" class="remote-table-list">
+                <div class="empty-state">Loading tables...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-tables" class="tab-content">
+        <h2 style="margin-bottom: 20px;">Table Snapshots</h2>
+        <div id="tables-list" class="table-list">
+            <div class="empty-state">Loading table data...</div>
+        </div>
+    </div>
+
+    <script>
+const CONFIG = {
+    REMOTE_API_URL: '/api',
+    HEALTH_POLL_INTERVAL: 10000,
+    STATUS_POLL_INTERVAL: 5000,
+    COLLECTOR_POLL_INTERVAL: 5000,
+    REMOTE_POLL_INTERVAL: 3000,
+    DEBUG: true,
+};
+
+let currentTab = 'overview';
+
+function log(...args) {
+    if (CONFIG.DEBUG) console.log(...args);
+}
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        switchTab(tabName);
+    });
+});
+
+function switchTab(tabName) {
+    currentTab = tabName;
+
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    if (tabName === 'tables') {
+        pollCollectorStatus();
+    } else if (tabName === 'remote') {
+        pollRemoteStatus();
+    }
+}
+
+async function pollServiceHealth() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/health`);
+        if (response.ok) {
+            updateServiceHealth('remote', 'healthy');
+        } else {
+            updateServiceHealth('remote', 'offline');
+        }
+    } catch (error) {
+        log('[Health] Error:', error.message);
+        updateServiceHealth('remote', 'unknown');
+    }
+}
+
+async function pollServiceStatus() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/status`);
+        if (response.ok) {
+            const data = await response.json();
+            updateServiceStatus(data);
+            updateLastUpdate();
+        }
+    } catch (error) {
+        log('[Status] Error:', error.message);
+    }
+}
+
+async function pollCollectorStatus() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/collector/status`);
+        if (response.ok) {
+            const data = await response.json();
+            updateServiceHealth('collector', 'healthy');
+            updateCollectorTables(data);
+        } else {
+            updateServiceHealth('collector', 'offline');
+        }
+    } catch (error) {
+        log('[Collector] Error:', error.message);
+        updateServiceHealth('collector', 'unknown');
+    }
+}
+
+async function pollEngineStatus() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/engine/status`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'healthy') {
+                updateServiceHealth('engine', 'healthy');
+            } else {
+                updateServiceHealth('engine', 'offline');
+            }
+        } else {
+            updateServiceHealth('engine', 'offline');
+        }
+    } catch (error) {
+        log('[Engine] Error:', error.message);
+        updateServiceHealth('engine', 'unknown');
+    }
+}
+
+async function pollRemoteStatus() {
+    try {
+        const response = await fetch(`${CONFIG.REMOTE_API_URL}/remote/status`);
+        if (response.ok) {
+            const data = await response.json();
+            log('[Remote]', data);
+            updateRemoteControl(data);
+        }
+    } catch (error) {
+        log('[Remote] Error:', error.message);
+    }
+}
+
+function updateServiceHealth(service, status) {
+    const el = document.getElementById(`status-${service}`);
+    if (el) {
+        const dot = el.querySelector('.status-dot');
+        if (dot) dot.dataset.status = status;
+    }
+}
+
+function updateServiceStatus(data) {
+    const uptimeEl = document.getElementById('remote-uptime');
+    if (uptimeEl && data.uptime_seconds) {
+        const hours = Math.floor(data.uptime_seconds / 3600);
+        const minutes = Math.floor((data.uptime_seconds % 3600) / 60);
+        uptimeEl.textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+
+    const memEl = document.getElementById('remote-memory');
+    if (memEl && data.memory_mb) {
+        memEl.textContent = `${Math.round(data.memory_mb)} MB`;
+    }
+
+    const tablesEl = document.getElementById('metric-tables');
+    if (tablesEl) tablesEl.textContent = data.table_count || 0;
+
+    const cmdsEl = document.getElementById('metric-commands');
+    if (cmdsEl) cmdsEl.textContent = data.command_queue_size || 0;
+
+    const seatsEl = document.getElementById('metric-seats');
+    if (seatsEl) seatsEl.textContent = data.seat_count || 0;
+}
+
+function updateCollectorTables(data) {
+    const listEl = document.getElementById('tables-list');
+    if (!listEl) return;
+
+    if (!data.tables || data.tables.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">No active tables</div>';
+        return;
+    }
+
+    listEl.innerHTML = data.tables.map(table => {
+        const ageClass = table.age_seconds < 30 ? 'fresh' :
+                        table.age_seconds < 120 ? 'stale' : 'old';
+        const itemClass = table.age_seconds < 30 ? 'active' : 'stale';
+
+        return `
+            <div class="table-item ${itemClass}">
+                <div>
+                    <div class="table-id">${table.table_id}</div>
+                    <div class="table-meta">Hand: ${table.hand_key || 'none'}</div>
+                </div>
+                <div>
+                    <div>${table.street}</div>
+                    <div class="table-meta">Street</div>
+                </div>
+                <div>
+                    <div>${table.active_seats}/${table.seat_count}</div>
+                    <div class="table-meta">Active Seats</div>
+                </div>
+                <div>
+                    <div class="table-age ${ageClass}">${formatAge(table.age_seconds)}</div>
+                    <div class="table-meta">Last Update</div>
+                </div>
+                <div>
+                    <div class="table-meta">${new Date(table.last_update * 1000).toLocaleTimeString()}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateRemoteControl(data) {
+    // Update commands list
+    const commandsEl = document.getElementById('commands-list');
+    if (commandsEl) {
+        if (!data.commands || data.commands.length === 0) {
+            commandsEl.innerHTML = '<div class="empty-state">No pending commands</div>';
+        } else {
+            commandsEl.innerHTML = data.commands.map(cmd => {
+                const ageClass = cmd.age_seconds < 5 ? 'fresh' : cmd.age_seconds < 15 ? 'stale' : 'old';
+                return `
+                    <div class="command-item pending">
+                        <div>
+                            <div class="command-text">${cmd.command.toUpperCase()}</div>
+                            <div class="command-meta">Token: ${cmd.seat_token.substring(0, 12)}...</div>
+                        </div>
+                        <div>
+                            <div class="command-meta">Status: ${cmd.status}</div>
+                        </div>
+                        <div>
+                            <div class="command-age ${ageClass}">${formatAge(cmd.age_seconds)}</div>
+                        </div>
+                        <div>
+                            <div class="command-meta">${new Date(cmd.queued_at * 1000).toLocaleTimeString()}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Update remote tables list
+    const tablesEl = document.getElementById('remote-tables-list');
+    if (tablesEl) {
+        if (!data.tables || data.tables.length === 0) {
+            tablesEl.innerHTML = '<div class="empty-state">No active tables</div>';
+        } else {
+            tablesEl.innerHTML = data.tables.map(table => {
+                const seatsHtml = table.seats.map(seat => {
+                    let classes = 'seat-card';
+                    if (seat.name || seat.stack_zar > 0) classes += ' active';
+                    if (seat.is_hero) classes += ' hero';
+
+                    return `
+                        <div class="${classes}">
+                            <div class="seat-header">
+                                <span class="seat-name">Seat ${seat.seat_no}: ${seat.name || 'Empty'}</span>
+                                ${seat.is_dealer ? '<span>🎯</span>' : ''}
+                            </div>
+                            <div class="seat-stack">R ${seat.stack_zar}</div>
+                            <div class="seat-status">${seat.status}</div>
+                            ${seat.pending_command ? `<div class="seat-command">${seat.pending_command.toUpperCase()}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="remote-table-card">
+                        <div class="remote-table-header">
+                            <div>
+                                <div style="font-size: 18px; font-weight: bold; color: #4a9eff;">${table.table_id}</div>
+                                <div style="font-size: 12px; color: #888; margin-top: 4px;">
+                                    ${table.street} | Pot: R ${table.pot_zar} | ${table.active_seats}/${table.seat_count} active
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 12px; color: ${table.age_seconds < 30 ? '#0f0' : '#f90'};">
+                                    ${formatAge(table.age_seconds)}
+                                </div>
+                                <div style="font-size: 11px; color: #888;">
+                                    ${new Date(table.last_update * 1000).toLocaleTimeString()}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="seats-grid">
+                            ${seatsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+function formatAge(seconds) {
+    if (seconds < 60) return `${Math.floor(seconds)}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+function updateLastUpdate() {
+    const el = document.getElementById('last-update');
+    if (el) {
+        el.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+    }
+}
+
+// Start polling
+log('[Shell] Initializing...');
+pollServiceHealth();
+pollServiceStatus();
+pollCollectorStatus();
+pollEngineStatus();
+pollRemoteStatus();
+
+setInterval(pollServiceHealth, CONFIG.HEALTH_POLL_INTERVAL);
+setInterval(pollServiceStatus, CONFIG.STATUS_POLL_INTERVAL);
+setInterval(pollCollectorStatus, CONFIG.COLLECTOR_POLL_INTERVAL);
+setInterval(pollEngineStatus, CONFIG.HEALTH_POLL_INTERVAL);
+setInterval(pollRemoteStatus, CONFIG.REMOTE_POLL_INTERVAL);
+
+log('[Shell] Complete shell initialized - Overview, Remote, Tables');
+    </script>
+</body>
+</html>
