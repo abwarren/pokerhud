@@ -1,0 +1,10 @@
+{
+  "site": "sunbet",
+  "domains": ["sb-play.pkrsrv.com", "sb-web.pkrsrv.com"],
+  "seatSel": ".r-seat",
+  "nameSel": ".player-name",
+  "stackSel": ".player-cash",
+  "boardSel": ".r-table-cards .r-card .face",
+  "potSel": ".bank-container-content",
+  "canvasTable": false
+}

@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "PokerBet HUD",
+  "version": "1.0.0",
+  "description": "Live poker HUD overlay for PokerBet.co.za — VPIP, PFR, 3-Bet & more",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://poker-web.pokerbet.co.za/*",
+    "https://poker-web.goldrush.co.za/*",
+    "https://sb-play.pkrsrv.com/*",
+    "https://sb-web.pkrsrv.com/*",
+    "http://localhost:8899/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://poker-web.pokerbet.co.za/*",
+        "https://poker-web.goldrush.co.za/*",
+        "https://sb-play.pkrsrv.com/*",
+        "https://sb-web.pkrsrv.com/*"
+      ],
+      "js": ["src/content/content.js"],
+      "css": ["src/content/hud.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/*", "src/selectors/*"],
+      "matches": [
+        "https://poker-web.pokerbet.co.za/*",
+        "https://poker-web.goldrush.co.za/*",
+        "https://sb-play.pkrsrv.com/*",
+        "https://sb-web.pkrsrv.com/*"
+      ]
+    }
+  ]
+}

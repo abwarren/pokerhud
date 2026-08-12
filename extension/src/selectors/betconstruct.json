@@ -1,0 +1,10 @@
+{
+  "site": "pokerbet",
+  "domains": ["poker-web.pokerbet.co.za", "poker-web.goldrush.co.za"],
+  "seatSel": "[class*=\"seat\"][class*=\"player\"], [class*=\"Seat\"]",
+  "nameSel": "[class*=\"name\"],[class*=\"Name\"],p:first-child",
+  "stackSel": "[class*=\"chips\"],[class*=\"Chips\"],[class*=\"stack\"]",
+  "boardSel": "[class*=\"board\"] [class*=\"card\"],[class*=\"Board\"] [class*=\"card\"],[class*=\"community\"]",
+  "potSel": "[class*=\"pot\"],[class*=\"Pot\"],[class*=\"total-pot\"]",
+  "canvasTable": true
+}

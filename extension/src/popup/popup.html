@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PokerBet HUD</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div id="app">
+  <div class="header">PokerBet HUD</div>
+
+  <!-- Login screen -->
+  <div id="login-screen">
+    <p class="subtitle">Enter password to activate</p>
+    <input type="password" id="password-input" placeholder="Password" autofocus>
+    <button id="login-btn">UNLOCK</button>
+    <p id="login-error" class="error hidden">Wrong password</p>
+  </div>
+
+  <!-- Dashboard screen -->
+  <div id="dashboard-screen" class="hidden">
+    <div class="status-row">
+      <span id="status-dot" class="dot dot-red"></span>
+      <span id="status-text">Disconnected</span>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Session Summary</div>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-value" id="stat-hands">0</div>
+          <div class="stat-label">Hands</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="stat-players">0</div>
+          <div class="stat-label">Players</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="stat-tables">0</div>
+          <div class="stat-label">Tables</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">My Stats</div>
+      <div id="my-stats">
+        <div class="stat-row-item"><span class="label">VPIP</span><span class="value" id="my-vpip">--</span></div>
+        <div class="stat-row-item"><span class="label">PFR</span><span class="value" id="my-pfr">--</span></div>
+        <div class="stat-row-item"><span class="label">3-Bet</span><span class="value" id="my-3b">--</span></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="refresh-btn">⟳ Refresh</button>
+      <button id="lock-btn">Lock</button>
+    </div>
+    <div class="version">v1.0.0</div>
+  </div>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>
