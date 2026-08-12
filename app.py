@@ -2180,8 +2180,13 @@ def scrape_tables_endpoint():
 
         app.logger.info(f"[SCRAPER] Scrape triggered by {current_user.username}")
 
-        # Import scraper module
-        import table_scraper
+        # Legacy scraper deleted in harmonization (docs/SYSTEM-HARMONIZATION.md).
+        # Route kept for API compat — 501s cleanly when the module is gone.
+        try:
+            import table_scraper  # noqa: F401
+        except ImportError:
+            return jsonify({"ok": False,
+                            "error": "scrape_plo6_tables not available in this build"}), 501
 
         # scrape_plo6_tables lives in dublin-mirror/plo-w4p/table_scraper.py,
         # not the root copy — guard so this route 501s cleanly instead of
