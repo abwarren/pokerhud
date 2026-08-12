@@ -53,6 +53,33 @@ def test_two_sites_same_table_no_collision():
     assert sites == {"pokerbet", "sunbet"}, f"site bleed: {sites}"
 
 
+def test_multi_hero_cards_isolated():
+    """Two heroes in one snapshot must each keep their OWN hole cards
+    (regression: last hero's seat got the FIRST hero's cards via the
+    post-loop single-hero cache — broke the equity panel with dup cards)."""
+    app = create_app()
+    c = app.test_client()
+    SNAP2 = {
+        "table_id": "T-MH", "dealer_seat": 1, "deal_id": "h1", "site": "pokerbet",
+        "seats": [
+            {"name": "hero1", "seat_index": 0, "is_hero": True, "stack_zar": 100,
+             "hole_cards": ["Ah", "Kh", "Qh", "Jh"]},
+            {"name": "hero2", "seat_index": 1, "is_hero": True, "stack_zar": 100,
+             "hole_cards": ["Ad", "Kd", "Qd", "Jd"]}],
+        "street": "flop", "pot_zar": 50,
+        "board": {"flop": ["2c", "7s", "9d"], "turn": None, "river": None},
+    }
+    r = c.post("/api/snapshot", json=SNAP2, headers={"X-API-Key": API_KEY})
+    assert r.status_code == 200
+
+    tables = c.get("/api/tables").get_json()
+    entries = (tables or {}).get("tables") if isinstance(tables, dict) else tables
+    t = next(x for x in entries if x.get("table_id") == "T-MH")
+    by_name = {s.get("name"): s.get("hole_cards") for s in t.get("seats", []) if s.get("name")}
+    assert by_name["hero1"] == ["Ah", "Kh", "Qh", "Jh"]
+    assert by_name["hero2"] == ["Ad", "Kd", "Qd", "Jd"]
+
+
 def test_seat_tokens_are_site_scoped():
     from webapp import remote_bp as rb
 

@@ -35,6 +35,13 @@
   }
   .conn-dot.ok  { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
   .conn-dot.err { background: #f44336; box-shadow: 0 0 6px #f44336; }
+  .equity-panel { margin: 10px auto; max-width: 560px; background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 10px 14px; font-size: 13px; }
+  .equity-panel.hidden { display: none; }
+  .equity-head { color: #58a6ff; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+  .equity-meta { color: #8b949e; font-weight: 400; letter-spacing: 0; font-size: 11px; }
+  .equity-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #21262d; }
+  .equity-row:last-child { border-bottom: none; }
+  .equity-row b { color: #3fb950; }
 
   /* ── Main area ── */
   .main-area {
@@ -576,6 +583,11 @@
   </div>
 </div>
 
+<div id="equity-panel" class="equity-panel hidden">
+  <div class="equity-head">EQUITY <span id="equity-meta" class="equity-meta"></span></div>
+  <div id="equity-rows"></div>
+</div>
+
 <div id="cmd-log"></div>
 
 <div id="bottom-bar" class="bottom-bar hidden">
@@ -664,6 +676,7 @@ async function fetchTable() {
       label.textContent = 'v' + (j.table.state_version || '?');
       lastTable = j.table;
       loadAutoRule();
+      maybeEquity();
     } else {
       dot.className = 'conn-dot';
       label.textContent = 'no table';
@@ -683,6 +696,7 @@ function applySseTable(tbl) {
   lastTable = tbl;
   loadAutoRule();
   render();
+  maybeEquity();
 }
 function startSse() {
   var es;
@@ -725,6 +739,44 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function () { sel.value = 'off'; });
   });
 });
+
+// ── Equity panel (slice 8): one page — remote grid + live equity ──
+var _equityKey = null;
+var _equityBusy = false;
+function equityVariant(v) {
+  v = (v || 'plo').toLowerCase();
+  if (v === 'plo5' || v === 'plo6' || v === 'nlhe') return v;
+  return 'plo4';   // 'plo' (default) and anything unknown → PLO4
+}
+function maybeEquity() {
+  var panel = document.getElementById('equity-panel');
+  var meta = document.getElementById('equity-meta');
+  var rows = document.getElementById('equity-rows');
+  if (!panel || !lastTable) return;
+  var seats = (lastTable.seats || []).filter(function (s) { return s.hole_cards && s.hole_cards.length; });
+  var board = lastTable.board || {};
+  var b = [].concat(board.flop || [], board.turn ? [board.turn] : [], board.river ? [board.river] : []);
+  if (seats.length < 2) { panel.classList.add('hidden'); return; }
+  var variant = equityVariant(lastTable.variant);
+  var key = JSON.stringify([seats.map(function (s) { return s.name + ':' + s.hole_cards.join(','); }), b, variant]);
+  if (key === _equityKey || _equityBusy) return;
+  _equityKey = key;
+  _equityBusy = true;
+  meta.textContent = '…';
+  fetch(API + '/equity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hands: seats.map(function (s) { return s.hole_cards; }), board: b, variant: variant, samples: 20000 })
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    _equityBusy = false;
+    if (!j.ok) { meta.textContent = j.error || 'error'; return; }
+    panel.classList.remove('hidden');
+    meta.textContent = (j.exact ? 'exact' : 'sampled ' + j.samples) + ' · ' + j.runtime_ms + 'ms';
+    rows.innerHTML = seats.map(function (s, i) {
+      return '<div class="equity-row"><span>' + esc(s.name || ('Seat ' + s.seat_no)) + '</span><b>' + j.equity[i] + '%</b></div>';
+    }).join('');
+  }).catch(function () { _equityBusy = false; meta.textContent = 'error'; });
+}
 
 async function sendCmd(seatNo, cmdType, amount) {
   var tableId = lastTable ? lastTable.table_id : null;

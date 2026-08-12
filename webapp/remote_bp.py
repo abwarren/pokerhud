@@ -738,6 +738,9 @@ def post_snapshot():
             }
             if s.get("is_hero"):
                 hero_seat_no = seat_no
+                hc = s.get("hole_cards") or []
+                if hc:
+                    _hero_cards[(site, table_id, seat_no)] = hc  # per-hero cache
 
         # Merge seats: protect other bots' data (hole_cards, is_hero) from overwrite
         for sno, sdata in new_seats.items():
@@ -757,18 +760,14 @@ def post_snapshot():
         table["last_ts"]       = ts
         table["state_version"] += 1
 
-        # ── Multi-hero: always cache hero cards, bot mapping when bot_id present ──
-        if hero_seat_no is not None:
-            hero_hc = hero_seat.get('hole_cards', [])
-            if hero_hc:
-                _hero_cards[(site, table_id, hero_seat_no)] = hero_hc
-            if bot_id:
-                update_bot_seat_mapping(bot_id, site, table_id, hero_seat_no)
-                avail_actions = payload.get('available_actions', [])
-                _bot_actions[(site, bot_id)] = avail_actions
-                buttons = payload.get('buttons')
-                if buttons:
-                    _bot_buttons[(site, bot_id)] = buttons
+        # ── Bot mapping when bot_id present (hero cards cached per-seat above) ──
+        if hero_seat_no is not None and bot_id:
+            update_bot_seat_mapping(bot_id, site, table_id, hero_seat_no)
+            avail_actions = payload.get('available_actions', [])
+            _bot_actions[(site, bot_id)] = avail_actions
+            buttons = payload.get('buttons')
+            if buttons:
+                _bot_buttons[(site, bot_id)] = buttons
 
         # V2: Sync latest collector batch into table state
         _sync_collector_batch_to_table(site, table_id)
