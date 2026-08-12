@@ -1,6 +1,8 @@
 // W4P Injectable v19 - PLO Remote Table Control (hero-only: .self-player class ONLY, no fallbacks)
 // v19: remove .active gate entirely — self-player + visible buttons = available_actions
-// Paste into skillgames iframe console, or: fetch('https://potlimitomaha.xyz/w4p.js').then(r=>r.text()).then(eval)
+// Paste into skillgames iframe console. No secrets ship in source: set window.W4P_CONFIG
+// BEFORE pasting, e.g. window.W4P_CONFIG = { apiBase: 'https://your-backend/api', apiKey: 'your-key' }.
+// If apiKey is missing/empty, all network calls are skipped (poll/command loops still run).
 // Scrapes ALL seats, sends structured snapshots with button detection, polls commands, clicks buttons
 // No chrome.runtime deps — pure fetch-based
 
@@ -14,9 +16,19 @@
   if (window._w4p) { clearInterval(window._w4p); window._w4p = null; }
   window._w4p_injected = false;
 
-  // ── Config ───────────────────────────────────────────────────
-  var API_BASE = 'https://potlimitomaha.xyz/api';
-  var API_KEY  = 'trk_prod_1774368827';
+  // ── Config (defaults; override at inject time via window.W4P_CONFIG) ──
+  var CONFIG = { apiBase: 'http://localhost:8899/api', apiKey: '' };
+  // Runtime override — read at inject time, before any fetch:
+  if (window.W4P_CONFIG && window.W4P_CONFIG.apiBase) CONFIG.apiBase = window.W4P_CONFIG.apiBase;
+  if (window.W4P_CONFIG && window.W4P_CONFIG.apiKey) CONFIG.apiKey = window.W4P_CONFIG.apiKey;
+
+  // Empty apiKey → warn once and skip all network calls (poll/command loops keep running)
+  var _warnedNoKey = false;
+  function warnNoKeyOnce() {
+    if (_warnedNoKey) return;
+    _warnedNoKey = true;
+    console.warn('[w4p] no API key configured — set window.W4P_CONFIG');
+  }
 
   // ── Bridge fetch (routes through ISOLATED world → service worker) ──
   var _bridgeReqId = 0;
@@ -27,20 +39,22 @@
     if (cb) { delete _bridgePending[e.data.reqId]; cb(e.data.response); }
   });
   function bridgeFetch(path, method, body, callback) {
+    if (!CONFIG.apiKey) { warnNoKeyOnce(); return; }
     var reqId = ++_bridgeReqId;
     _bridgePending[reqId] = callback || function(){};
     window.postMessage({
       channel: 'W4P_BRIDGE', reqId: reqId,
-      path: path, method: method || 'GET', body: body || null, apiKey: API_KEY
+      path: path, method: method || 'GET', body: body || null, apiKey: CONFIG.apiKey
     }, '*');
   }
   // bridgeFetchRaw: same as bridgeFetch but path is relative to site root (no /api prefix)
   function bridgeFetchRaw(path, method, body, callback) {
+    if (!CONFIG.apiKey) { warnNoKeyOnce(); return; }
     var reqId = ++_bridgeReqId;
     _bridgePending[reqId] = callback || function(){};
     window.postMessage({
       channel: 'W4P_BRIDGE', reqId: reqId,
-      path: path, method: method || 'GET', body: body || null, apiKey: API_KEY, rawPath: true
+      path: path, method: method || 'GET', body: body || null, apiKey: CONFIG.apiKey, rawPath: true
     }, '*');
   }
 
@@ -1365,7 +1379,7 @@
 
   console.log('[W4P] v19 no-active-gate | session=' + _sessionId);
   console.log('[W4P] Polling: hero=' + POLL_MS.HERO_TURN + 'ms cmd=' + CMD_MS.HERO_TURN + 'ms');
-  console.log('[W4P] API: ' + API_BASE + ' | Remote: potlimitomaha.xyz/remote');
+  console.log('[W4P] API: ' + CONFIG.apiBase);
   tick();
 
   // ── Public API for debugging ─────────────────────────────────
