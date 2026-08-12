@@ -27,6 +27,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import json
+from queue import Empty, Queue
 from flask import (Blueprint, current_app, request, jsonify,
                     send_from_directory, send_file, make_response)
 from flask_cors import CORS
@@ -86,6 +87,64 @@ _store_lock    = threading.Lock()
 # Last-known-good table view cache (prevents UI flicker on partial/empty state)
 _last_good_view = None   # {"view": dict, "ts": float}
 _STALE_MAX_AGE  = 5.0    # seconds: max age before stale cache expires
+
+# ── SSE push (slice 6) ─────────────────────────────────────────────────────────
+# Subscribers are bounded queues (maxsize=1, drop-old) so a slow client never
+# blocks the snapshot path. Heartbeat keeps proxies from closing idle streams.
+_sse_subs   = set()
+_sse_lock   = threading.Lock()
+_SSE_HEARTBEAT = 15.0
+
+def _sse_latest_view():
+    """Build the latest known-good table view for push (None if no state)."""
+    with _store_lock:
+        if _last_good_view and (time.time() - _last_good_view['ts']) < _STALE_MAX_AGE:
+            return _last_good_view['view']
+        if _tables:
+            latest = max(_tables.values(), key=lambda t: t.get("last_ts", 0))
+            return _table_view(latest)
+        return None
+
+def _notify_sse():
+    """Broadcast the latest table view to all SSE subscribers (drop-old)."""
+    view = _sse_latest_view()
+    if view is None:
+        return
+    payload = json.dumps({"type": "table", "table": view}, default=str)
+    with _sse_lock:
+        for q in list(_sse_subs):
+            try:
+                q.get_nowait()
+            except Empty:
+                pass
+            q.put_nowait(payload)
+
+@remote_bp.route('/api/events')
+def sse_events():
+    """Server-sent events: pushes 'table' events on state change + heartbeat."""
+    def gen():
+        q = Queue(maxsize=1)
+        with _sse_lock:
+            _sse_subs.add(q)
+        try:
+            view = _sse_latest_view()
+            if view is not None:
+                yield f"data: {json.dumps({'type': 'table', 'table': view}, default=str)}\n\n"
+            while True:
+                try:
+                    payload = q.get(timeout=_SSE_HEARTBEAT)
+                    yield f"data: {payload}\n\n"
+                except Empty:
+                    yield ": keepalive\n\n"
+        finally:
+            with _sse_lock:
+                _sse_subs.discard(q)
+
+    resp = make_response(gen())
+    resp.mimetype = "text/event-stream"
+    resp.headers["Cache-Control"] = "no-cache, no-store"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
 
 # ── Hand history (multi-hand ASCII log, FIFO last 20) ──────────────────────────
 _hand_history  = []   # list of ASCII hand strings, newest last, max 20
@@ -704,6 +763,8 @@ def post_snapshot():
     if cashout_cmd:
         current_app.logger.info(f"[CASHOUT] Auto-queued table={site}/{table_id} seat_no={hero_seat_no}")
 
+    _notify_sse()  # slice 6: push new state to SSE subscribers
+
     return jsonify({
         'ok':         True,
         'seat_token': token,
@@ -795,6 +856,7 @@ def queue_command():
         }
 
     current_app.logger.info(f"[CMD] Queued {command_type} cmd={command_id} table={site}/{table_id} seat={seat_no}")
+    _notify_sse()  # slice 6: push pending-cmd state change
     return jsonify({'ok': True, 'command_id': command_id})
 
 # ── Endpoint 4b: POST /api/actions/report ─────────────────────────────────────

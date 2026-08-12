@@ -670,11 +670,33 @@ async function fetchTable() {
   render();
 }
 
+// ── API: SSE push (slice 6) — EventSource with polling fallback ──
+var sseLive = false;
+function applySseTable(tbl) {
+  lastTable = tbl;
+  render();
+}
+function startSse() {
+  var es;
+  try { es = new EventSource(API + '/events'); } catch (e) { return; }
+  es.onopen = function () { sseLive = true; };
+  es.onmessage = function (ev) {
+    try {
+      var msg = JSON.parse(ev.data);
+      if (msg.type === 'table' && msg.table) applySseTable(msg.table);
+    } catch (e) { /* ignore malformed frame */ }
+  };
+  es.onerror = function () {
+    sseLive = false;      // fall back to polling; EventSource auto-reconnects
+  };
+}
+
 // ── API: Send command ────────────────────────
 
 async function sendCmd(seatNo, cmdType, amount) {
   var tableId = lastTable ? lastTable.table_id : null;
   var body = { table_id: tableId, seat_no: seatNo, command_type: cmdType, remote_click_ts: Date.now() };
+  if (lastTable && lastTable.site) body.site = lastTable.site;  // tenant (slice 4)
   if (amount != null) body.amount = amount;
   try {
     var r = await fetch(API + '/commands/queue', {
@@ -1090,7 +1112,8 @@ window.addEventListener('resize', autoScale);
 // ── Init & poll ──────────────────────────────
 
 fetchTable();
-setInterval(fetchTable, POLL_MS);
+startSse();
+setInterval(function () { if (!sseLive) fetchTable(); }, POLL_MS);
 setTimeout(autoScale, 50);
 </script>
 </body>
